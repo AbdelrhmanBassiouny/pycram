@@ -214,9 +214,9 @@ class Link(PhysicalBody, ObjectEntity, LinkDescription, ABC):
         """
         return self.description.name
 
-    def get_axis_aligned_bounding_box(self, transform_to_link_pose: bool = True) -> AxisAlignedBoundingBox:
+    def get_axis_aligned_bounding_box(self, shift_to_link_position: bool = True) -> AxisAlignedBoundingBox:
         """
-        :param transform_to_link_pose: If True, return the bounding box transformed to the link pose.
+        :param shift_to_link_position: If True, return the bounding box transformed to the link pose.
         :return: The axis-aligned bounding box of a link. First try to get it from the simulator, if not,
          then calculate it depending on the type of the link geometry.
         """
@@ -224,8 +224,8 @@ class Link(PhysicalBody, ObjectEntity, LinkDescription, ABC):
             return self.world.get_link_axis_aligned_bounding_box(self)
         except NotImplementedError:
             bounding_box = self.get_axis_aligned_bounding_box_from_geometry()
-            if transform_to_link_pose:
-                return bounding_box.get_transformed_box(self.transform)
+            if shift_to_link_position:
+                return bounding_box.shift_by(self.pose.position)
             else:
                 return bounding_box
 
@@ -237,8 +237,7 @@ class Link(PhysicalBody, ObjectEntity, LinkDescription, ABC):
         try:
             return self.world.get_link_rotated_bounding_box(self)
         except NotImplementedError:
-            return RotatedBoundingBox.from_axis_aligned_bounding_box(self.get_axis_aligned_bounding_box(),
-                                                                     self.transform)
+            return self.get_axis_aligned_bounding_box_from_geometry().get_rotated_box(self.transform)
 
     def get_axis_aligned_bounding_box_from_geometry(self) -> AxisAlignedBoundingBox:
         if isinstance(self.geometry, List):
@@ -732,7 +731,8 @@ class ObjectDescription(EntityDescription):
                           axis: Optional[Point] = None,
                           lower_limit: Optional[float] = None, upper_limit: Optional[float] = None,
                           child_pose_wrt_parent: Optional[Pose] = None,
-                          in_place: bool = False) -> Union[ObjectDescription, Self]:
+                          in_place: bool = False,
+                          new_description_file: Optional[str] = None) -> Union[ObjectDescription, Self]:
         """
         Merge the description of this object with the description of the other object.
 
@@ -745,6 +745,8 @@ class ObjectDescription(EntityDescription):
         :param upper_limit: The upper limit of the joint connecting the two objects.
         :param child_pose_wrt_parent: The pose of the child link with respect to the parent link.
         :param in_place: True if the merge should be done in place, False otherwise.
+        :param new_description_file: If given, the new description will be saved to this file, otherwise the new
+            description will be saved in place of the original file.
         :return: The merged object description, could be a new object description if in_place is False else self.
         """
         pass
