@@ -3,7 +3,7 @@ import os
 import mujoco
 import numpy as np
 from mujoco_connector.src.mujoco_connector import MultiverseMujocoConnector
-from multiverse_simulator import MultiverseViewer
+from multiverse_simulator import MultiverseViewer, MultiverseAttribute
 from typing_extensions import List, Optional, Dict, Callable, Type, Tuple
 
 import pycrap
@@ -171,15 +171,30 @@ class Multiverse(World):
         :param pose: The pose of the object.
         :param obj_type: The type of the object.
         """
-
+        self._add_object_read_data_to_viewer(name)
         return self._update_object_id_name_maps_and_get_latest_id(name)
+
+    def _add_object_read_data_to_viewer(self, name: str) -> None:
+        """
+        Add the object read data to the viewer.
+
+        :param name: The name of the object.
+        :param position: The position of the object.
+        :param quaternion: The quaternion of the object.
+        """
+        read_objects = self.viewer.read_objects
+        read_objects[name] = {
+            "position": MultiverseAttribute(np.zeros(3)),
+            "quaternion": MultiverseAttribute(np.array([1, 0, 0, 0]))
+        }
+        self.viewer.read_objects = read_objects
 
     def load_generic_object_and_get_id(self, description: GenericObjectDescription,
                                        pose: Optional[Pose] = None) -> int:
-        save_path = os.path.join(self.cache_manager.cache_dir, description.name + ".xml")
-        object_factory = PrimitiveObjectFactory(description.name, description.links[0].geometry, save_path)
-        object_factory.build_shape()
-        object_factory.export_to_mjcf(save_path)
+        # save_path = os.path.join(self.cache_manager.cache_dir, description.name + ".xml")
+        # object_factory = PrimitiveObjectFactory(description.name, description.links[0].geometry, save_path)
+        # object_factory.build_shape()
+        # object_factory.export_to_mjcf(save_path)
         return self.load_object_and_get_id(description.name, pose, pycrap.PhysicalObject)
 
     def get_images_for_target(self, target_pose: Pose,
