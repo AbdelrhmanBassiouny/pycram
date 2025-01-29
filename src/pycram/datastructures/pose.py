@@ -221,11 +221,24 @@ class Pose(PoseStamped):
         """
         return [self.position.x, self.position.y, self.position.z]
 
+    def position_as_array(self) -> np.ndarray:
+        """
+        :return: The position as a numpy array of xyz values.
+        """
+        return np.array([self.position.x, self.position.y, self.position.z])
+
     def orientation_as_list(self) -> List[float]:
         """
         :return: The orientation as a quaternion with xyzw
         """
         return [self.pose.orientation.x, self.pose.orientation.y, self.pose.orientation.z, self.pose.orientation.w]
+
+    def orientation_as_array(self) -> np.ndarray:
+        """
+        :return: The orientation as a numpy array of xyzw values.
+        """
+        return np.array([self.pose.orientation.x, self.pose.orientation.y, self.pose.orientation.z,
+                         self.pose.orientation.w])
 
     def dist(self, other_pose: Pose) -> float:
         """

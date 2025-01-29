@@ -28,7 +28,7 @@ class MultiverseConfig(WorldConfig):
     """
 
     # Multiverse Simulation Configuration
-    simulation_time_step: datetime.timedelta = datetime.timedelta(milliseconds=10)
+    simulation_time_step: datetime.timedelta = datetime.timedelta(milliseconds=1)
     simulation_frequency: int = int(1 / simulation_time_step.total_seconds())
     """
     The time step of the simulation in seconds and the frequency of the simulation in Hz.

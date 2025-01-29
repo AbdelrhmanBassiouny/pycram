@@ -79,7 +79,7 @@ class World(WorldEntity, ABC):
     """
 
     def __init__(self, mode: WorldMode = WorldMode.DIRECT, is_prospection: bool = False, clear_cache: bool = False,
-                 id_: int = -1):
+                 prospection_mode: WorldMode = WorldMode.DIRECT, id_: int = -1, **kwargs):
         """
         Create a new simulation, the mode decides if the simulation should be a rendered window or just run in the
         background. There can only be one rendered simulation.
@@ -89,12 +89,18 @@ class World(WorldEntity, ABC):
          "GUI"
         :param is_prospection: For internal usage, decides if this World should be used as a prospection world.
         :param clear_cache: Whether to clear the cache directory.
+        :param prospection_mode: The mode of the prospection world.
         :param id_: The unique id of the world.
         """
 
         WorldEntity.__init__(self, id_, self)
         self.ontology = pycrap.Ontology()
         self.latest_state_id: Optional[int] = None
+        self.mode = mode
+        self.prospection_mode: WorldMode = prospection_mode
+        self.kwargs: Dict = kwargs
+        for key, value in kwargs.items():
+            setattr(self, key, value)
 
         if clear_cache or (self.conf.clear_cache_at_start and not self.cache_manager.cache_cleared):
             self.cache_manager.clear_cache()
@@ -273,7 +279,8 @@ class World(WorldEntity, ABC):
         if self.is_prospection_world:  # then no need to add another prospection world
             self.prospection_world = None
         else:
-            self.prospection_world: World = self.__class__(is_prospection=True)
+            self.prospection_world: World = self.__class__(is_prospection=True, mode=self.prospection_mode,
+                                                           **self.kwargs)
 
     def _sync_prospection_world(self):
         """
