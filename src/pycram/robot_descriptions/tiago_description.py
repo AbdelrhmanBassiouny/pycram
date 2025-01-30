@@ -4,11 +4,11 @@ from ..datastructures.dataclasses import VirtualMobileBaseJoints
 from ..datastructures.enums import GripperState, Arms, Grasp, TorsoState
 from ..robot_description import RobotDescription, KinematicChainDescription, EndEffectorDescription, \
     RobotDescriptionManager, CameraDescription
-from ..helper import get_robot_mjcf_path
+from ..helper import get_robot_description_path
 
 filename = get_ros_package_path('pycram') + '/resources/robots/' + "tiago_dual" + '.urdf'
 
-mjcf_filename = get_robot_mjcf_path("pal_robotics", "tiago_dual")
+mjcf_filename = get_robot_description_path("pal_robotics", "tiago_dual")
 
 tiago_description = RobotDescription("tiago_dual", "base_link", "torso_lift_link", "torso_lift_joint",
                                      filename,
