@@ -1,25 +1,23 @@
 import os
 
-import mujoco
 import numpy as np
 from mujoco_connector.src.mujoco_connector import MultiverseMujocoConnector
-from multiverse_simulator import MultiverseViewer, MultiverseAttribute
 from typing_extensions import List, Optional, Dict, Callable, Type, Tuple
 
 import pycrap
 from pycrap import PhysicalObject
 from ..config.multiverse_conf import MultiverseConfig
 from ..datastructures.dataclasses import Color, ContactPointsList
-from ..datastructures.enums import WorldMode, JointType, MultiverseJointCMD, MultiverseJointPosition
+from ..datastructures.enums import WorldMode, JointType, MultiverseJointCMD
 from ..datastructures.pose import Pose
 from ..datastructures.world import World
 from ..datastructures.world_entity import PhysicalBody
 from ..description import Link, Joint
 from ..object_descriptors.generic import ObjectDescription as GenericObjectDescription
-from ..object_descriptors.mjcf import ObjectDescription as MJCF, PrimitiveObjectFactory
+from ..object_descriptors.mjcf import ObjectDescription as MJCF
 from ..robot_description import RobotDescription
 from ..ros.logging import logwarn, logerr
-from ..utils import RayTestUtils, xyzw_to_wxyz_arr, wxyz_to_xyzw, adjust_camera_pose_based_on_target
+from ..utils import RayTestUtils, xyzw_to_wxyz_arr, adjust_camera_pose_based_on_target, wxyz_to_xyzw_arr
 from ..world_concepts.constraints import Constraint
 from ..world_concepts.world_object import Object
 
@@ -83,37 +81,15 @@ class Multiverse(World):
 
         self.ray_test_utils = RayTestUtils(self.ray_test_batch, self.object_id_to_name)
 
-        self.viewer = MultiverseViewer()
-        self._init_scene_and_update_viewer()
-        self.simulator = MultiverseMujocoConnector(viewer=self.viewer,
-                                                   file_path=scene_file_path,
+        self.simulator = MultiverseMujocoConnector(file_path=scene_file_path,
                                                    headless=mode == WorldMode.DIRECT,
                                                    real_time_factor=1,
                                                    step_size=self.conf.simulation_time_step.total_seconds())
         self.simulator.start(run_in_thread=False)
+        self.simulator.step()
 
         if not self.is_prospection_world:
             self._spawn_floor()
-
-    def _init_scene_and_update_viewer(self) -> None:
-        """
-        Initialize the scene using the scene file path.
-        """
-        mj_model = mujoco.MjModel.from_xml_path(self.scene_file_path)
-        read_objects = {}
-        revolute_joint_names = [mj_model.joint(joint_id).name for joint_id in range(mj_model.njnt) if
-                                mj_model.jnt_type[joint_id] == mujoco.mjtJoint.mjJNT_HINGE]
-        for joint_name in revolute_joint_names:
-            read_objects[joint_name] = {
-                "joint_rvalue": [0.0]
-            }
-        prismatic_joint_names = [mj_model.joint(joint_id).name for joint_id in range(mj_model.njnt) if
-                                 mj_model.jnt_type[joint_id] == mujoco.mjtJoint.mjJNT_SLIDE]
-        for joint_name in prismatic_joint_names:
-            read_objects[joint_name] = {
-                "joint_tvalue": [0.0]
-            }
-        self.viewer.read_objects = read_objects
 
     @property
     def scene_file_path(self) -> str:
@@ -171,23 +147,7 @@ class Multiverse(World):
         :param pose: The pose of the object.
         :param obj_type: The type of the object.
         """
-        self._add_object_read_data_to_viewer(name)
         return self._update_object_id_name_maps_and_get_latest_id(name)
-
-    def _add_object_read_data_to_viewer(self, name: str) -> None:
-        """
-        Add the object read data to the viewer.
-
-        :param name: The name of the object.
-        :param position: The position of the object.
-        :param quaternion: The quaternion of the object.
-        """
-        read_objects = self.viewer.read_objects
-        read_objects[name] = {
-            "position": MultiverseAttribute(np.zeros(3)),
-            "quaternion": MultiverseAttribute(np.array([1, 0, 0, 0]))
-        }
-        self.viewer.read_objects = read_objects
 
     def load_generic_object_and_get_id(self, description: GenericObjectDescription,
                                        pose: Optional[Pose] = None) -> int:
@@ -240,6 +200,126 @@ class Multiverse(World):
     def remove_object_from_simulator(self, obj: Object) -> bool:
         logwarn("Removing object from simulator is not supported in Multiverse.")
         return False
+
+    def get_object_joint_names(self, obj: Object) -> List[str]:
+        return [joint.name for joint in obj.description.joints if joint.type in self.supported_joint_types]
+
+    def get_object_link_names(self, obj: Object) -> List[str]:
+        return [link.name for link in obj.description.links]
+
+    def reset_object_base_pose(self, obj: Object, pose: Pose) -> bool:
+        if obj.name not in self.simulator.get_all_body_names().result:
+            logwarn(f"object {obj.name} not found in the simulator.")
+            return False
+        self.simulator.set_body_position(obj.name, pose.position_as_array())
+        self.simulator.set_body_quaternion(obj.name, xyzw_to_wxyz_arr(pose.orientation_as_array()))
+        return True
+
+    def reset_multiple_objects_base_poses(self, objects: Dict[Object, Pose]) -> bool:
+        objects_positions = {obj.name: pose.position_as_array()
+                             for obj, pose in objects.items()
+                             if self.check_object_exists(obj)}
+        objects_quaternions = {obj.name: xyzw_to_wxyz_arr(pose.orientation_as_array())
+                               for obj, pose in objects.items()
+                               if self.check_object_exists(obj)}
+        if len(objects_positions) != len(objects):
+            logwarn("object names not found in the simulator.")
+            return False
+        self.simulator.set_bodies_positions(objects_positions)
+        self.simulator.set_bodies_quaternions(objects_quaternions)
+        return True
+
+    def get_multiple_object_poses(self, objects: List[Object]) -> Dict[str, Pose]:
+        return self._get_multiple_body_poses(objects)
+
+    def get_multiple_object_positions(self, objects: List[Object]) -> Dict[str, np.ndarray]:
+        return self._get_multiple_body_positions(objects)
+
+    def get_multiple_object_orientations(self, objects: List[Object]) -> Dict[str, np.ndarray]:
+        return self._get_multiple_body_orientations(objects)
+
+    def get_object_pose(self, obj: Object) -> Pose:
+        return self.get_link_pose(obj.root_link)
+
+    def get_object_position(self, obj: Object) -> np.ndarray:
+        return self._get_body_position(obj)
+
+    def get_object_orientation(self, obj: Object) -> np.ndarray:
+        return self._get_body_orientation(obj)
+
+    def get_multiple_link_poses(self, links: List[Link]) -> Dict[str, Pose]:
+        return self._get_multiple_body_poses(links)
+
+    def get_multiple_link_positions(self, links: List[Link]) -> Dict[str, np.ndarray]:
+        return self._get_multiple_body_positions(links)
+
+    def get_multiple_link_orientations(self, links: List[Link]) -> Dict[str, np.ndarray]:
+        return self._get_multiple_body_orientations(links)
+
+    def get_link_pose(self, link: Link) -> Pose:
+        return self._get_body_pose(link)
+
+    def get_link_position(self, link: Link) -> np.ndarray:
+        return self._get_body_position(link)
+
+    def get_link_orientation(self, link: Link) -> np.ndarray:
+        return self._get_body_orientation(link.object)
+
+    def _get_multiple_body_poses(self, bodies: List[PhysicalBody]) -> Dict[str, Pose]:
+        positions_data = self._get_multiple_body_positions(bodies)
+        quaternions_data = self._get_multiple_body_orientations(bodies)
+        return {body.name: Pose(positions_data[body.name], quaternions_data[body.name]) for body in bodies}
+
+    def _get_multiple_body_positions(self, bodies: List[PhysicalBody]) -> Dict[str, np.ndarray]:
+        return self.simulator.get_bodies_positions([body.name for body in bodies]).result
+
+    def _get_multiple_body_orientations(self, bodies: List[PhysicalBody]) -> Dict[str, np.ndarray]:
+        """
+        :param bodies: The list of physical bodies.
+        :return: The orientations of the bodies as a dictionary from body name to quaternion array.
+        """
+        return self.simulator.get_bodies_quaternions([body.name for body in bodies]).result
+
+    def _get_body_pose(self, body: PhysicalBody) -> Pose:
+        return Pose(self._get_body_position(body), self._get_body_orientation(body))
+
+    def _get_body_position(self, body: PhysicalBody) -> np.ndarray:
+        if body.parent_entity.ontology_concept == pycrap.Floor:
+            return np.array([0, 0, 0])
+        return self.simulator.get_body_position(body.name).result
+
+    def _get_body_orientation(self, body: PhysicalBody) -> np.ndarray:
+        if body.parent_entity.ontology_concept == pycrap.Floor:
+            return np.array([0, 0, 0, 1])
+        quat_arr = self.simulator.get_body_quaternion(body.name).result
+        if quat_arr is None:
+            err_msg = f"Failed to get orientation of body {body.name}"
+            logerr(err_msg)
+            raise ValueError(err_msg)
+        return wxyz_to_xyzw_arr(quat_arr)
+
+    def _set_multiple_joint_positions(self, joint_positions: Dict[Joint, float]) -> bool:
+        joints_data = {joint.name: position
+                       for joint, position in joint_positions.items()
+                       if joint.name in self.simulator.get_all_joint_names()}
+        if len(joints_data) != len(joint_positions):
+            logwarn("joint names not found in the simulator.")
+            return False
+        self.simulator.set_joints_values(joints_data)
+        return True
+
+    def _reset_joint_position(self, joint: Joint, joint_position: float) -> bool:
+        if joint.name not in self.simulator.get_all_joint_names():
+            logwarn(f"joint {joint.name} not found in the simulator.")
+            return False
+        self.simulator.set_joint_value(joint.name, joint_position)
+        return True
+
+    def _get_multiple_joint_positions(self, joints: List[Joint]) -> Dict[str, float]:
+        return self.simulator.get_joints_values([joint.name for joint in joints]).result
+
+    def _get_joint_position(self, joint: Joint) -> float:
+        return self.simulator.get_joint_value(joint.name).result
 
     def add_constraint(self, constraint: Constraint) -> int:
 
@@ -326,69 +406,6 @@ class Multiverse(World):
         """
         self.simulator.detach(child_link_name)
 
-    def _get_joint_position(self, joint: Joint) -> float:
-        joint_position_name = self.get_joint_position_name(joint)
-        return self.viewer.read_objects[joint.name][joint_position_name.value].values[0][0]
-
-    @staticmethod
-    def get_joint_position_name(joint: Joint) -> MultiverseJointPosition:
-        """
-        Get the attribute name of the joint position in the Multiverse from the pycram joint type.
-
-        :param joint: The joint.
-        """
-        return MultiverseJointPosition.from_pycram_joint_type(joint.type)
-
-    def get_object_joint_names(self, obj: Object) -> List[str]:
-        return [joint.name for joint in obj.description.joints if joint.type in self.supported_joint_types]
-
-    def get_link_pose(self, link: Link) -> Pose:
-        pos = self.get_link_position(link)
-        orientation = self.get_link_orientation(link)
-        return Pose(pos, orientation)
-
-    def get_multiple_link_poses(self, links: List[Link]) -> Dict[str, Pose]:
-        return {link.name: self.get_link_pose(link) for link in links}
-
-    def get_link_position(self, link: Link) -> List[float]:
-        if link.object.obj_type == pycrap.Floor:
-            return [0, 0, 0]
-        pos_arr = self.viewer.read_objects[link.name]["position"].values[0]
-        return pos_arr.tolist()
-
-    def get_link_orientation(self, link: Link) -> List[float]:
-        if link.object.obj_type == pycrap.Floor:
-            return [0, 0, 0, 1]
-        quat_arr = self.viewer.read_objects[link.name]["quaternion"].values[0]
-        return wxyz_to_xyzw(quat_arr.tolist())
-
-    def get_multiple_link_positions(self, links: List[Link]) -> Dict[str, List[float]]:
-        return {link.name: self.get_link_position(link) for link in links}
-
-    def get_multiple_link_orientations(self, links: List[Link]) -> Dict[str, List[float]]:
-        return {link.name: self.get_link_orientation(link) for link in links}
-
-    def get_object_link_names(self, obj: Object) -> List[str]:
-        return [link.name for link in obj.description.links]
-
-    def get_object_pose(self, obj: Object) -> Pose:
-        return self.get_link_pose(obj.root_link)
-
-    def get_multiple_object_poses(self, objects: List[Object]) -> Dict[str, Pose]:
-        return {obj.name: self.get_object_pose(obj) for obj in objects}
-
-    def get_multiple_object_positions(self, objects: List[Object]) -> Dict[str, List[float]]:
-        return {obj.name: self.get_object_position(obj) for obj in objects}
-
-    def get_object_position(self, obj: Object) -> List[float]:
-        return self.get_link_position(obj.root_link)
-
-    def get_multiple_object_orientations(self, objects: List[Object]) -> Dict[str, List[float]]:
-        return {obj.name: self.get_object_orientation(obj) for obj in objects}
-
-    def get_object_orientation(self, obj: Object) -> List[float]:
-        return self.get_link_orientation(obj.root_link)
-
     def perform_collision_detection(self) -> None:
         pass
 
@@ -404,62 +421,6 @@ class Multiverse(World):
         print(contacts)
         logwarn("multiverse contact points between two bodies needs testing")
         return contacts
-
-    def _reset_joint_position(self, joint: Joint, joint_position: float) -> bool:
-        if joint.name not in self.simulator.get_all_joint_names():
-            logwarn(f"joint {joint.name} not found in the simulator.")
-            return False
-        write_objects = {
-            joint.name: {
-                self.get_joint_position_name(joint).value: [joint_position]
-            }
-        }
-        self._write_and_step(write_objects)
-        return True
-
-    def _set_multiple_joint_positions(self, joint_positions: Dict[Joint, float]) -> bool:
-        joints_data = {joint.name: {self.get_joint_position_name(joint): [position]}
-                       for joint, position in joint_positions.items()
-                       if joint.name in self.simulator.get_all_joint_names()}
-        if len(joints_data) != len(joint_positions):
-            logwarn("joint names not found in the simulator.")
-            return False
-        self._write_and_step(joints_data)
-        return True
-
-    def _write_and_step(self, write_objects: Dict[str, Dict]) -> None:
-        """
-        Write the objects data and step the simulator.
-        """
-        self.viewer.write_objects = write_objects
-        self.simulator.step()
-
-    def _get_multiple_joint_positions(self, joints: List[Joint]) -> Dict[str, float]:
-        return {joint.name: self._get_joint_position(joint) for joint in joints}
-
-    def reset_object_base_pose(self, obj: Object, pose: Pose) -> bool:
-        if obj.name not in self.simulator.get_all_body_names().result:
-            logwarn(f"object {obj.name} not found in the simulator.")
-            return False
-        write_objects = {
-            obj.name: {
-                "position": pose.position_as_array(),
-                "quaternion": xyzw_to_wxyz_arr(pose.orientation_as_array())
-            }
-        }
-        self._write_and_step(write_objects)
-        return True
-
-    def reset_multiple_objects_base_poses(self, objects: Dict[Object, Pose]) -> bool:
-        objects_data = {obj.name: {"position": pose.position_as_array(),
-                                   "quaternion": xyzw_to_wxyz_arr(pose.orientation_as_array())}
-                        for obj, pose in objects.items()
-                        if self.check_object_exists(obj)}
-        if len(objects_data) != len(objects):
-            logwarn("object names not found in the simulator.")
-            return False
-        self._write_and_step(objects_data)
-        return True
 
     def step(self, func: Optional[Callable[[], None]] = None, step_seconds: Optional[float] = None) -> None:
         self.simulator.step()
