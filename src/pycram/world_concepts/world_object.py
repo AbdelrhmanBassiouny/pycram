@@ -27,7 +27,7 @@ from ..local_transformer import LocalTransformer
 from ..object_descriptors.generic import ObjectDescription as GenericObjectDescription
 from ..object_descriptors.urdf import ObjectDescription as URDF
 from ..ros.data_types import Time
-from ..ros.logging import logwarn
+from ..ros.logging import logwarn, logerr
 
 try:
     from ..object_descriptors.mjcf import ObjectDescription as MJCF
@@ -96,12 +96,15 @@ class Object(PhysicalBody):
         self.local_transformer = LocalTransformer()
         self.original_pose = self.local_transformer.transform_pose(pose, "map")
         self._current_pose = self.original_pose
+        self.scale_mesh = scale_mesh if scale_mesh is not None else 1.0
+        color = Color() if color is None else color
 
         if path is not None:
             self.path = self.world.preprocess_object_file_and_get_its_cache_path(path, ignore_cached_files,
                                                                                  self.description, self.name,
-                                                                                 scale_mesh=scale_mesh,
-                                                                                 mesh_transform=mesh_transform)
+                                                                                 scale_mesh=self.scale_mesh,
+                                                                                 mesh_transform=mesh_transform,
+                                                                                 color=color)
 
             self.description.update_description_from_file(self.path)
 
@@ -379,10 +382,9 @@ class Object(PhysicalBody):
             return obj_id
 
         except Exception as e:
-            logging.error(
-                "The File could not be loaded. Please note that the path has to be either a URDF, stl or obj file or"
-                " the name of an URDF string on the parameter server.")
-            logging.error(e)
+            logerr(
+                f"The caught error: {e}, The File could not be loaded. Please note that the path has to be either"
+                f" a URDF, stl or obj file or the name of an URDF string on the parameter server.")
             os.remove(path)
             raise e
 
@@ -642,15 +644,13 @@ class Object(PhysicalBody):
         return self.__class__.__qualname__ + (f"(name={self.name}, object_type={self.obj_type.name},"
                                               f" file_path={self.path}, pose={self.pose}, world={self.world})")
 
-    def remove(self, remove_from_simulator: bool = True) -> None:
+    def remove(self) -> None:
         """
         Remove this object from the World it currently resides in.
         For the object to be removed it has to be detached from all objects it
-        is currently attached to. Then remove this Object from the simulation/world if remove_from_simulator is True.
-
-        :param remove_from_simulator: If True the object will be removed from the simulator.
+        is currently attached to. Then remove this Object from the simulation/world.
         """
-        self.world.remove_object(self, remove_from_simulator=remove_from_simulator)
+        self.world.remove_object(self)
 
     def reset(self, remove_saved_states=False) -> None:
         """
@@ -808,7 +808,6 @@ class Object(PhysicalBody):
         """
         return self.get_pose().orientation_as_list()
 
-    @deprecated("Use property 'pose' instead.")
     def get_pose(self) -> Pose:
         """
         Return the position of this object as a list of xyz. Alias for :func:`~Object.get_position`.
@@ -1402,11 +1401,9 @@ class Object(PhysicalBody):
         """
         return self.world.get_closest_points_between_two_bodies(self, other_object, max_distance)
 
-    @deprecated("Use property setter 'color' instead.")
     def set_color(self, rgba_color: Color) -> None:
         self.color = rgba_color
 
-    @deprecated("Use property 'color' instead.")
     def get_color(self) -> Union[Color, Dict[str, Color]]:
         return self.color
 
