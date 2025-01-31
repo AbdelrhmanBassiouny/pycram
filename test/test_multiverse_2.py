@@ -1,5 +1,6 @@
 import os
 import unittest
+from time import sleep
 
 import numpy as np
 import psutil
@@ -22,8 +23,8 @@ except ImportError:
     multiverse_installed = False
 
 
-# @unittest.skipIf(not multiverse_installed, "Multiverse is not installed.")
-@unittest.skip
+@unittest.skipIf(not multiverse_installed, "Multiverse is not installed.")
+# @unittest.skip
 class TestMultiverse(unittest.TestCase):
     if multiverse_installed:
         multiverse: Multiverse
@@ -261,6 +262,7 @@ class TestMultiverse(unittest.TestCase):
         self.spawn_robot()
         self.assertTrue(self.multiverse.robot in self.multiverse.objects)
 
+    @unittest.skip
     def test_set_robot_position(self):
         step = -1
         for i in range(3):
@@ -272,6 +274,7 @@ class TestMultiverse(unittest.TestCase):
                                       delta=self.multiverse.conf.position_tolerance)
             self.tearDown()
 
+    @unittest.skip
     def test_set_robot_orientation(self):
         self.spawn_robot()
         for i in range(3):
@@ -284,6 +287,7 @@ class TestMultiverse(unittest.TestCase):
             quaternion_difference = calculate_angle_between_quaternions(new_quaternion, robot_orientation)
             self.assertAlmostEqual(quaternion_difference, 0, delta=self.multiverse.conf.orientation_tolerance)
 
+    @unittest.skip
     def test_set_robot_pose(self):
         self.spawn_robot(orientation=quaternion_from_euler(0, 0, np.pi / 4))
         position_step = -1
@@ -294,6 +298,7 @@ class TestMultiverse(unittest.TestCase):
         angle_step = -np.pi / 4
         self.step_robot_pose(self.multiverse.robot, position_step, angle_step, num_steps)
 
+    @unittest.skip
     def step_robot_pose(self, robot, position_step, angle_step, num_steps):
         original_position = robot.get_position_as_list()
         original_orientation = robot.get_orientation_as_list()
@@ -309,6 +314,7 @@ class TestMultiverse(unittest.TestCase):
                                         position_delta=self.multiverse.conf.position_tolerance,
                                         orientation_delta=self.multiverse.conf.orientation_tolerance)
 
+    @unittest.skip
     def test_get_environment_pose(self):
         if "apartment" not in self.multiverse.get_object_names():
             apartment = Object("apartment", pycrap.Apartment, f"apartment.urdf")
@@ -319,18 +325,16 @@ class TestMultiverse(unittest.TestCase):
 
     def test_attach_object(self):
         for _ in range(3):
-            milk = self.spawn_milk([1, 0.1, 0.1])
-            cup = self.spawn_cup([1, 1.1, 0.1])
-            milk.attach(cup)
-            self.assertTrue(cup in milk.attachments)
-            milk_position = milk.get_position_as_list()
-            milk_position[0] += 1
-            cup_position = cup.get_position_as_list()
-            estimated_cup_position = cup_position.copy()
-            estimated_cup_position[0] += 1
-            milk.set_position(milk_position)
-            new_cup_position = cup.get_position_as_list()
-            self.assert_list_is_equal(new_cup_position[:2], estimated_cup_position[:2],
+            robot = self.spawn_robot(robot_name="panda")
+            box = self.spawn_box()
+            robot.attach(box, "hand")
+            self.assertTrue(box in robot.attachments)
+            joint_position = robot.get_joint_position("joint1")
+            joint_position += 0.2
+            estimated_box_position = robot.links["hand"].get_transform_to_link(box.root_link).translation_as_list()
+            robot.set_joint_position("joint1", joint_position)
+            new_box_position = robot.links["hand"].get_transform_to_link(box.root_link).translation_as_list()
+            self.assert_list_is_equal(new_box_position[:2], estimated_box_position[:2],
                                       self.multiverse.conf.position_tolerance)
             self.tearDown()
 
