@@ -313,7 +313,6 @@ class Multiverse(World):
             logwarn(f"joint {joint.name} not found in the simulator.")
             return False
         self.simulator.set_joint_value(joint.name, joint_position)
-        self.simulator.run_callback()
         return True
 
     def _get_multiple_joint_positions(self, joints: List[Joint]) -> Dict[str, float]:
