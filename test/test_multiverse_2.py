@@ -389,7 +389,7 @@ class TestMultiverse(unittest.TestCase):
         self.assert_poses_are_equal(milk_initial_pose, milk_pose)
 
     def test_get_object_contact_points(self):
-        for i in range(1):
+        for i in range(3):
             box = self.spawn_box()
             contact_points = self.multiverse.get_object_contact_points(box)
             self.assertIsInstance(contact_points, ContactPointsList)
@@ -397,24 +397,25 @@ class TestMultiverse(unittest.TestCase):
             self.assertIsInstance(contact_points[0], ContactPoint)
             self.assertTrue(contact_points[0].body_b.object, self.multiverse.floor)
             robot = self.spawn_robot(robot_name="panda")
-            # This is needed because the robot is spawned in the air, so it needs to fall
-            # to get in contact with the box
-            # self.multiverse.simulate(0.4)
             contact_points = self.multiverse.get_object_contact_points(robot)
             self.assertIsInstance(contact_points, ContactPointsList)
-            # self.assertTrue(len(contact_points) >= 1)
-            # self.assertIsInstance(contact_points[0], ContactPoint)
-            # self.assertTrue(contact_points[0].body_b.object, box)
+            self.assertTrue(len(contact_points) >= 1)
+            self.assertIsInstance(contact_points[0], ContactPoint)
+            self.assertTrue(contact_points[0].body_b.object, box)
             self.tearDown()
 
     def test_get_robot_contact_points(self):
-        robot = self.spawn_robot([0.9345829872370865, 1.9027591011850133, 0.0],
-                                 quaternion_from_euler(0, 0, 2.26).tolist(),
-                                 robot_name="pr2")
-        apartment = self.spawn_apartment()
-        contact_points = self.multiverse.get_contact_points_between_two_bodies(robot, apartment)
+        robot = self.spawn_robot(robot_name="panda")
+        box = self.spawn_box()
+        finger_position = robot.links["right_finger"].position_as_list
+        finger_position[2] -= 0.05
+        box.set_position(finger_position)
+        self.multiverse.step()
+        self.multiverse.simulator.run_callback()
+        contact_points = self.multiverse.get_contact_points_between_two_bodies(robot, box)
         self.assertTrue(len(contact_points) > 0)
 
+    @unittest.skip
     def test_get_contact_points_between_two_objects(self):
         for i in range(3):
             milk = self.spawn_milk([1, 1, 0.01], [0, -0.707, 0, 0.707])

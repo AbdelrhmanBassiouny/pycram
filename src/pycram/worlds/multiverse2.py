@@ -2,17 +2,18 @@ import os
 
 import numpy as np
 from mujoco_connector.src.mujoco_connector import MultiverseMujocoConnector
-from typing_extensions import List, Optional, Dict, Callable, Type, Tuple
+from typing_extensions import List, Optional, Dict, Callable, Type, Tuple, Union
 
 import pycrap
 from pycrap import PhysicalObject
 from ..config.multiverse_conf import MultiverseConfig
-from ..datastructures.dataclasses import Color, ContactPointsList
+from ..datastructures.dataclasses import Color, ContactPointsList, ContactPoint, LateralFriction
 from ..datastructures.enums import WorldMode, JointType, MultiverseJointCMD
 from ..datastructures.pose import Pose
 from ..datastructures.world import World
 from ..datastructures.world_entity import PhysicalBody
 from ..description import Link, Joint
+from ..failures import ObjectNotFound, LinkNotFound
 from ..object_descriptors.generic import ObjectDescription as GenericObjectDescription
 from ..object_descriptors.mjcf import ObjectDescription as MJCF
 from ..robot_description import RobotDescription
@@ -410,17 +411,43 @@ class Multiverse(World):
         pass
 
     def get_body_contact_points(self, body: PhysicalBody) -> ContactPointsList:
-        contacts = self.simulator.get_contact_points(body_1_name=body.name, including_children=True).result
-        print(contacts)
-        logwarn("multiverse contact points needs testing")
-        return contacts
+        contacts = self.simulator.get_contact_points(body_1_names=[body.name], including_children=True).result
+        return self._contacts_to_contact_points_list(contacts)
 
     def get_contact_points_between_two_bodies(self, body_1: PhysicalBody, body_2: PhysicalBody) -> ContactPointsList:
-        contacts = self.simulator.get_contact_points(body_1_name=body_1.name, body_2_name=body_2.name,
+        contacts = self.simulator.get_contact_points(body_1_names=[body_1.name], body_2_names=[body_2.name],
                                                      including_children=True).result
-        print(contacts)
-        logwarn("multiverse contact points between two bodies needs testing")
-        return contacts
+        return self._contacts_to_contact_points_list(contacts)
+
+    def _contacts_to_contact_points_list(self, contacts: List[Dict[str, Union[str, np.ndarray]]]) -> ContactPointsList:
+        contact_points_list = ContactPointsList()
+        for contact in contacts:
+            link_a = self.find_link_by_name(contact["bodyUniqueNameA"], contact["linkNameA"])
+            link_b = self.find_link_by_name(contact["bodyUniqueNameB"], contact["linkNameB"])
+            contact_point = ContactPoint(body_a=link_a, body_b=link_b,
+                                         position_on_body_a=contact["positionOnA"].tolist(),
+                                         position_on_body_b=contact["positionOnB"].tolist(),
+                                         normal_on_body_b=contact["contactNormalOnB"].tolist(),
+                                         distance=float(contact["contactDistance"]),
+                                         normal_force=float(contact["normalForce"]),
+                                         lateral_friction_1=LateralFriction(float(contact["lateralFriction1"]),
+                                                                            contact["lateralFrictionDir1"].tolist()),
+                                         lateral_friction_2=LateralFriction(float(contact["lateralFriction2"]),
+                                                                            contact["lateralFrictionDir2"].tolist()))
+            contact_points_list.append(contact_point)
+        return contact_points_list
+
+    def find_link_by_name(self, object_name: str, link_name: str) -> Link:
+        object_name = "floor" if object_name == "world" else object_name
+        link_name = "planeLink" if link_name == "world" else link_name
+        if object_name in self.object_name_to_id:
+            obj = self.get_object_by_name(object_name)
+        else:
+            raise ObjectNotFound(object_name)
+        if link_name in obj.links:
+            return obj.links[link_name]
+        else:
+            raise LinkNotFound(link_name, object_name)
 
     def step(self, func: Optional[Callable[[], None]] = None, step_seconds: Optional[float] = None) -> None:
         self.simulator.step()
