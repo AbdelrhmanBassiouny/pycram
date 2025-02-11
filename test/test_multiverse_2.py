@@ -434,18 +434,18 @@ class TestMultiverse(unittest.TestCase):
     @unittest.skip
     def test_get_one_ray(self):
         milk = self.spawn_milk([1, 1, 0.1])
-        intersected_object = self.multiverse.ray_test([1, 2, 0.1], [1, 1.5, 0.1])
+        intersected_object = self.multiverse._ray_test([1, 2, 0.1], [1, 1.5, 0.1])
         self.assertTrue(intersected_object is None)
-        intersected_object = self.multiverse.ray_test([1, 2, 0.1], [1, 1, 0.1])
+        intersected_object = self.multiverse._ray_test([1, 2, 0.1], [1, 1, 0.1])
         self.assertTrue(intersected_object == milk.id)
 
     @unittest.skip
     def test_get_rays(self):
         milk = self.spawn_milk([1, 1, 0.1])
-        intersected_objects = self.multiverse.ray_test_batch([[1, 2, 0.1], [1, 2, 0.1]],
-                                                             [[1, 1.5, 0.1], [1, 1, 0.1]])
-        self.assertTrue(intersected_objects[0][0] == -1)
-        self.assertTrue(intersected_objects[1][0] == milk.id)
+        intersected_objects = self.multiverse._ray_test_batch([[1, 2, 0.1], [1, 2, 0.1]],
+                                                              [[1, 1.5, 0.1], [1, 1, 0.1]])
+        self.assertTrue(intersected_objects[0] == -1)
+        self.assertTrue(intersected_objects[1] == milk.id)
 
     @staticmethod
     def spawn_big_bowl() -> Object:

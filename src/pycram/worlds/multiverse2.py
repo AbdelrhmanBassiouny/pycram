@@ -7,7 +7,7 @@ from typing_extensions import List, Optional, Dict, Callable, Type, Tuple, Union
 import pycrap
 from pycrap import PhysicalObject
 from ..config.multiverse_conf import MultiverseConfig
-from ..datastructures.dataclasses import Color, ContactPointsList, ContactPoint, LateralFriction
+from ..datastructures.dataclasses import Color, ContactPointsList, ContactPoint, LateralFriction, RayResult
 from ..datastructures.enums import WorldMode, JointType, MultiverseJointCMD
 from ..datastructures.pose import Pose
 from ..datastructures.world import World
@@ -75,19 +75,19 @@ class Multiverse(World):
                                            "worlds/floor/floor.xml")
         self._scene_file_path = scene_file_path
 
-        World.__init__(self, mode=mode, is_prospection=is_prospection, prospection_mode=prospection_mode,
-                       scene_file_path=scene_file_path)
-
-        self._init_constraint_and_object_id_name_map_collections()
-
-        self.ray_test_utils = RayTestUtils(self.ray_test_batch, self.object_id_to_name)
-
         self.simulator = MultiverseMujocoConnector(file_path=scene_file_path,
                                                    headless=mode == WorldMode.DIRECT,
                                                    real_time_factor=1,
                                                    step_size=self.conf.simulation_time_step.total_seconds())
         self.simulator.start(run_in_thread=False)
         self.simulator.step()
+
+        World.__init__(self, mode=mode, is_prospection=is_prospection, prospection_mode=prospection_mode,
+                       scene_file_path=scene_file_path)
+
+        self._init_constraint_and_object_id_name_map_collections()
+
+        self.ray_test_utils = RayTestUtils(self.ray_test_batch, self.object_id_to_name)
 
         if not self.is_prospection_world:
             self._spawn_floor()
@@ -422,8 +422,8 @@ class Multiverse(World):
     def _contacts_to_contact_points_list(self, contacts: List[Dict[str, Union[str, np.ndarray]]]) -> ContactPointsList:
         contact_points_list = ContactPointsList()
         for contact in contacts:
-            link_a = self.find_link_by_name(contact["bodyUniqueNameA"], contact["linkNameA"])
-            link_b = self.find_link_by_name(contact["bodyUniqueNameB"], contact["linkNameB"])
+            link_a = self.get_link_given_object_and_link_names(contact["bodyUniqueNameA"], contact["linkNameA"])
+            link_b = self.get_link_given_object_and_link_names(contact["bodyUniqueNameB"], contact["linkNameB"])
             contact_point = ContactPoint(body_a=link_a, body_b=link_b,
                                          position_on_body_a=contact["positionOnA"].tolist(),
                                          position_on_body_b=contact["positionOnB"].tolist(),
@@ -436,18 +436,6 @@ class Multiverse(World):
                                                                             contact["lateralFrictionDir2"].tolist()))
             contact_points_list.append(contact_point)
         return contact_points_list
-
-    def find_link_by_name(self, object_name: str, link_name: str) -> Link:
-        object_name = "floor" if object_name == "world" else object_name
-        link_name = "planeLink" if link_name == "world" else link_name
-        if object_name in self.object_name_to_id:
-            obj = self.get_object_by_name(object_name)
-        else:
-            raise ObjectNotFound(object_name)
-        if link_name in obj.links:
-            return obj.links[link_name]
-        else:
-            raise LinkNotFound(link_name, object_name)
 
     def step(self, func: Optional[Callable[[], None]] = None, step_seconds: Optional[float] = None) -> None:
         self.simulator.step()
@@ -482,21 +470,47 @@ class Multiverse(World):
         self.simulator.reset()
 
     def save_physics_simulator_state(self, state_id: Optional[int] = None, use_same_id: bool = False) -> int:
-        logwarn("Saving physics simulator state is not supported in Multiverse.")
-        return 0
+        if state_id is None:
+            self.latest_save_id = 0 if self.latest_save_id is None else self.latest_save_id + int(not use_same_id)
+            state_id = self.latest_save_id
+        save_name = f"multiverse_sim_save_{state_id}"
+        self.saved_simulator_states[state_id] = self.simulator.save(key_name=save_name)
+        return state_id
 
     def remove_physics_simulator_state(self, state_id: int) -> None:
         logwarn("Removing physics simulator state is not supported in Multiverse.")
 
     def restore_physics_simulator_state(self, state_id: int) -> None:
-        logwarn("Restoring physics simulator state is not supported in Multiverse.")
+        self.simulator.load(key_id=self.saved_simulator_states[state_id])
 
-    def ray_test(self, from_position: List[float], to_position: List[float]) -> int:
-        logwarn("Ray test is not supported in Multiverse.")
+    def _ray_test(self, from_position: List[float], to_position: List[float]) -> RayResult:
+        result = self.simulator.ray_test(from_position, to_position).result
+        if not result:
+            return RayResult(-1)
+        object_name = result["objectUniqueName"]
+        link_name = result["linkName"]
+        link = self.get_link_given_object_and_link_names(object_name, link_name)
+        return RayResult(link.object_id, link.id, result["hit_position"].tolist(), result["hit_fraction"],
+                         result["hit_normal"].tolist())
 
-    def ray_test_batch(self, from_positions: List[List[float]], to_positions: List[List[float]],
-                       num_threads: int = 1) -> List[int]:
-        logwarn("Ray test batch is not supported in Multiverse.")
+    def _ray_test_batch(self, from_positions: List[List[float]], to_positions: List[List[float]],
+                        num_threads: int = 1) -> List[int]:
+        results = []
+        for from_position, to_position in zip(from_positions, to_positions):
+            results.append(self._ray_test(from_position, to_position))
+        return results
+
+    def get_link_given_object_and_link_names(self, object_name: str, link_name: str) -> Link:
+        object_name = "floor" if object_name == "world" else object_name
+        link_name = "planeLink" if link_name == "world" else link_name
+        if object_name in self.object_name_to_id:
+            obj = self.get_object_by_name(object_name)
+        else:
+            raise ObjectNotFound(object_name)
+        if link_name in obj.links:
+            return obj.links[link_name]
+        else:
+            raise LinkNotFound(link_name, object_name)
 
     def check_object_exists(self, obj: Object) -> bool:
         """
