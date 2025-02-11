@@ -431,21 +431,32 @@ class TestMultiverse(unittest.TestCase):
             self.assertTrue(contact_points[0].body_b.object, cup)
             self.tearDown()
 
-    @unittest.skip
     def test_get_one_ray(self):
-        milk = self.spawn_milk([1, 1, 0.1])
-        intersected_object = self.multiverse._ray_test([1, 2, 0.1], [1, 1.5, 0.1])
-        self.assertTrue(intersected_object is None)
-        intersected_object = self.multiverse._ray_test([1, 2, 0.1], [1, 1, 0.1])
-        self.assertTrue(intersected_object == milk.id)
+        self.multiverse.step()
+        box = self.spawn_box()
+        box_position = box.get_position_as_list()
+        ray_start = [box_position[0], box_position[1] + 1, box_position[2]]
+        ray_end = [box_position[0], box_position[1] - 1, box_position[2]]
+        ray_result = self.multiverse.ray_test(ray_start, ray_end,calculate_distance=True)
+        self.assertTrue(ray_result.intersected)
+        self.assertTrue(ray_result.obj_id == box.id)
+        self.assertTrue(ray_result.hit_position[0] == box_position[0])
+        self.assertTrue(ray_result.hit_position[2] == box_position[2])
+        self.assertTrue(ray_result.distance == 1 - 0.02)
+        self.assertTrue(ray_result.hit_fraction == 0.5 - 0.02/2)
 
-    @unittest.skip
     def test_get_rays(self):
-        milk = self.spawn_milk([1, 1, 0.1])
-        intersected_objects = self.multiverse._ray_test_batch([[1, 2, 0.1], [1, 2, 0.1]],
-                                                              [[1, 1.5, 0.1], [1, 1, 0.1]])
-        self.assertTrue(intersected_objects[0] == -1)
-        self.assertTrue(intersected_objects[1] == milk.id)
+        self.multiverse.step()
+        box = self.spawn_box()
+        box_position = box.get_position_as_list()
+        ray_start_1 = [box_position[0] + 1, box_position[1], box_position[2]]
+        ray_end_1 = [box_position[0] + 2, box_position[1], box_position[2]]
+        ray_start_2 = [box_position[0], box_position[1] + 1, box_position[2]]
+        ray_end_2 = [box_position[0], box_position[1] - 1, box_position[2]]
+        ray_results = self.multiverse.ray_test_batch([ray_start_1, ray_start_2],
+                                                              [ray_end_1, ray_end_2])
+        self.assertFalse(ray_results[0].intersected)
+        self.assertTrue(ray_results[1].intersected and ray_results[1].obj_id == box.id)
 
     @staticmethod
     def spawn_big_bowl() -> Object:

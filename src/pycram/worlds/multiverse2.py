@@ -214,6 +214,7 @@ class Multiverse(World):
             return False
         self.simulator.set_body_position(obj.name, pose.position_as_array())
         self.simulator.set_body_quaternion(obj.name, xyzw_to_wxyz_arr(pose.orientation_as_array()))
+        self.simulator.run_callback()
         return True
 
     def reset_multiple_objects_base_poses(self, objects: Dict[Object, Pose]) -> bool:
@@ -228,6 +229,7 @@ class Multiverse(World):
             return False
         self.simulator.set_bodies_positions(objects_positions)
         self.simulator.set_bodies_quaternions(objects_quaternions)
+        self.simulator.run_callback()
         return True
 
     def get_multiple_object_poses(self, objects: List[Object]) -> Dict[str, Pose]:
@@ -302,11 +304,12 @@ class Multiverse(World):
     def _set_multiple_joint_positions(self, joint_positions: Dict[Joint, float]) -> bool:
         joints_data = {joint.name: position
                        for joint, position in joint_positions.items()
-                       if joint.name in self.simulator.get_all_joint_names()}
+                       if joint.name in self.simulator.get_all_joint_names().result}
         if len(joints_data) != len(joint_positions):
             logwarn("joint names not found in the simulator.")
             return False
         self.simulator.set_joints_values(joints_data)
+        self.simulator.run_callback()
         return True
 
     def _reset_joint_position(self, joint: Joint, joint_position: float) -> bool:
@@ -314,6 +317,7 @@ class Multiverse(World):
             logwarn(f"joint {joint.name} not found in the simulator.")
             return False
         self.simulator.set_joint_value(joint.name, joint_position)
+        self.simulator.run_callback()
         return True
 
     def _get_multiple_joint_positions(self, joints: List[Joint]) -> Dict[str, float]:
@@ -489,9 +493,11 @@ class Multiverse(World):
             return RayResult(-1)
         object_name = result["objectUniqueName"]
         link_name = result["linkName"]
+        hit_normal = result["hit_normal"].tolist() if result["hit_normal"] is not None else None
+        hit_position = result["hit_position"].tolist() if result["hit_position"] is not None else None
+        hit_fraction = result["hit_fraction"]
         link = self.get_link_given_object_and_link_names(object_name, link_name)
-        return RayResult(link.object_id, link.id, result["hit_position"].tolist(), result["hit_fraction"],
-                         result["hit_normal"].tolist())
+        return RayResult(link.object_id, link.id, hit_fraction, hit_position, hit_normal)
 
     def _ray_test_batch(self, from_positions: List[List[float]], to_positions: List[List[float]],
                         num_threads: int = 1) -> List[int]:

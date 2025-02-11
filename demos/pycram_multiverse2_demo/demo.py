@@ -2,10 +2,10 @@ import os
 
 import pycrap
 from pycram.datastructures.dataclasses import Color
-from pycram.datastructures.enums import Arms, WorldMode
+from pycram.datastructures.enums import Arms, WorldMode, Grasp
 from pycram.datastructures.pose import Pose
 from pycram.designators.action_designator import ParkArmsAction, MoveTorsoAction, TransportAction, NavigateAction, \
-    LookAtAction
+    LookAtAction, PickUpAction
 from pycram.designators.object_designator import BelieveObject
 from pycram.helper import find_multiverse_resources_path
 from pycram.object_descriptors.urdf import ObjectDescription
@@ -20,22 +20,26 @@ example_scene_path = os.path.join(resources_path,
 multiverse = Multiverse(scene_file_path=example_scene_path,
                         mode=WorldMode.GUI, prospection_mode=WorldMode.GUI)
 extension = ObjectDescription.get_file_extension()
+
+multiverse.step()
 robot = Object('panda', pycrap.Robot, f'panda{extension}')
 
 obj_desc = GenericObjectDescription('box', [0, 0, 0], [0.02, 0.02, 0.02],
                                     color=Color(0, 1, 0, 1))
 box = Object("box", pycrap.PhysicalObject, None, description=obj_desc)
+multiverse.step()
 
 robot_desig = BelieveObject(names=[robot.name])
 
 with simulated_robot:
+    print([j.position for j in robot.joints.values()])
     # Transport the milk
     ParkArmsAction([Arms.BOTH]).resolve().perform()
+    multiverse.step()
 
-    NavigateAction(target_locations=[Pose([1.7, 2, 0])]).resolve().perform()
-
+    print([j.position for j in robot.joints.values()])
     box_desig = BelieveObject(names=[box.name])
-    TransportAction(box_desig, [Pose([2.4, 3, 1.02])], [Arms.RIGHT]).resolve().perform()
+    PickUpAction(box_desig, [Arms.RIGHT], [Grasp.TOP, Grasp.FRONT, Grasp.BACK]).resolve().perform()
 
     exit(0)
     # Find and navigate to the drawer containing the spoon
