@@ -40,6 +40,7 @@ class ManipulatorData:
     gripper_joint_names: List[str]
     closed_joint_values: List[float]
     open_joint_values: List[float]
+    opening_distance: float
 
     relative_dir: str = ''
 
