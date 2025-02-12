@@ -15,7 +15,7 @@ from ..datastructures.world_entity import PhysicalBody
 from ..description import Link, Joint
 from ..failures import ObjectNotFound, LinkNotFound
 from ..object_descriptors.generic import ObjectDescription as GenericObjectDescription
-from ..object_descriptors.mjcf import ObjectDescription as MJCF
+from ..object_descriptors.mjcf import ObjectDescription as MJCF, PrimitiveObjectFactory
 from ..robot_description import RobotDescription
 from ..ros.logging import logwarn, logerr
 from ..utils import RayTestUtils, xyzw_to_wxyz_arr, adjust_camera_pose_based_on_target, wxyz_to_xyzw_arr

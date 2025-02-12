@@ -26,7 +26,8 @@ robot = Object('panda', pycrap.Robot, f'panda{extension}')
 
 obj_desc = GenericObjectDescription('box', [0, 0, 0], [0.02, 0.02, 0.02],
                                     color=Color(0, 1, 0, 1))
-box = Object("box", pycrap.PhysicalObject, None, description=obj_desc)
+box = Object("box", pycrap.PhysicalObject, None, description=obj_desc,
+             pose=Pose([0.7, 0, 0.03]))
 multiverse.step()
 
 robot_desig = BelieveObject(names=[robot.name])
