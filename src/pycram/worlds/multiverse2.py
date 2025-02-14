@@ -1,4 +1,5 @@
 import os
+import threading
 
 import numpy as np
 from mujoco_connector.src.mujoco_connector import MultiverseMujocoConnector
@@ -91,6 +92,16 @@ class Multiverse(World):
 
         if not self.is_prospection_world:
             self._spawn_floor()
+
+        self.kill_renderer = threading.Event()
+
+        def render_callback():
+            while not self.kill_renderer.is_set():
+                self.simulator.run_callback()
+
+        if self.mode == WorldMode.GUI:
+            self.renderer_thread = threading.Thread(target=render_callback, args=())
+            self.renderer_thread.start()
 
     @property
     def scene_file_path(self) -> str:
@@ -214,7 +225,6 @@ class Multiverse(World):
             return False
         self.simulator.set_body_position(obj.name, pose.position_as_array())
         self.simulator.set_body_quaternion(obj.name, xyzw_to_wxyz_arr(pose.orientation_as_array()))
-        self.simulator.run_callback()
         return True
 
     def reset_multiple_objects_base_poses(self, objects: Dict[Object, Pose]) -> bool:
@@ -229,7 +239,6 @@ class Multiverse(World):
             return False
         self.simulator.set_bodies_positions(objects_positions)
         self.simulator.set_bodies_quaternions(objects_quaternions)
-        self.simulator.run_callback()
         return True
 
     def get_multiple_object_poses(self, objects: List[Object]) -> Dict[str, Pose]:
@@ -309,7 +318,6 @@ class Multiverse(World):
             logwarn("joint names not found in the simulator.")
             return False
         self.simulator.set_joints_values(joints_data)
-        self.simulator.run_callback()
         return True
 
     def _reset_joint_position(self, joint: Joint, joint_position: float) -> bool:
@@ -317,7 +325,6 @@ class Multiverse(World):
             logwarn(f"joint {joint.name} not found in the simulator.")
             return False
         self.simulator.set_joint_value(joint.name, joint_position)
-        self.simulator.run_callback()
         return True
 
     def _get_multiple_joint_positions(self, joints: List[Joint]) -> Dict[str, float]:
@@ -415,11 +422,11 @@ class Multiverse(World):
         pass
 
     def get_body_contact_points(self, body: PhysicalBody) -> ContactPointsList:
-        contacts = self.simulator.get_contact_points(body_1_names=[body.name], including_children=True).result
+        contacts = self.simulator.get_contact_points(body_names=[body.name], including_children=True).result
         return self._contacts_to_contact_points_list(contacts)
 
     def get_contact_points_between_two_bodies(self, body_1: PhysicalBody, body_2: PhysicalBody) -> ContactPointsList:
-        contacts = self.simulator.get_contact_points(body_1_names=[body_1.name], body_2_names=[body_2.name],
+        contacts = self.simulator.get_contact_points(body_names=[body_1.name, body_2.name],
                                                      including_children=True).result
         return self._contacts_to_contact_points_list(contacts)
 
@@ -465,7 +472,12 @@ class Multiverse(World):
         self.simulator.stop()
 
     def join_threads(self) -> None:
-        pass
+        """
+        Join the renderer thread.
+        """
+        if self.mode == WorldMode.GUI:
+            self.kill_renderer.set()
+            self.renderer_thread.join()
 
     def multiverse_reset_world(self):
         """
@@ -526,3 +538,6 @@ class Multiverse(World):
         :return: True if the object exists, False otherwise.
         """
         return obj.name in self.simulator.get_all_body_names().result
+
+
+

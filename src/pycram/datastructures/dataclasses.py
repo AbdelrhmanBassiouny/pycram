@@ -42,6 +42,9 @@ class ManipulatorData:
     open_joint_values: List[float]
     opening_distance: float
 
+    transform_tool_frame_by: Optional[Transform] = None
+    transformed_frame_name: str = "gripper_tool_frame"
+
     relative_dir: str = ''
 
     gripper_cmd_topic: str = "/gripper_command"

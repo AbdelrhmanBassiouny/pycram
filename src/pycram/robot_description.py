@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from enum import Enum
 
+import tf2_ros.static_transform_broadcaster
 from typing_extensions import List, Dict, Union, Optional
 
 from .datastructures.dataclasses import VirtualMobileBaseJoints, ManipulatorData
@@ -802,6 +803,13 @@ def create_manipulator_description(data: ManipulatorData,
     gripper_object_name = None if data.gripper_relative_dir is None else data.gripper_name
     robot_description = RobotDescription(data.name, data.base_link, "", "",
                                          urdf_filename, mjcf_path=mjcf_filename, gripper_name=gripper_object_name)
+
+    if data.transform_tool_frame_by:
+        static_tf_broadcaster = tf2_ros.static_transform_broadcaster.StaticTransformBroadcaster()
+        data.transform_tool_frame_by.header.frame_id = data.gripper_tool_frame
+        data.transform_tool_frame_by.child_frame_id = data.transformed_frame_name
+        static_tf_broadcaster.sendTransform(data.transform_tool_frame_by)
+        data.gripper_tool_frame = data.transformed_frame_name
 
     arm = robot_description.add_arm(data.arm_end_link,
                                     arm_home_values=dict(zip(data.joint_names, data.home_joint_values)))

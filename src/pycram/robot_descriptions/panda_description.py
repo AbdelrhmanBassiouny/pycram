@@ -1,9 +1,15 @@
+import math
+
+from tf.transformations import quaternion_from_euler
+
 from ..datastructures.dataclasses import ManipulatorData
 from ..datastructures.enums import Grasp
+from ..datastructures.pose import Transform
 from ..helper import get_robot_urdf_and_mjcf_file_paths, find_multiverse_resources_path
 from ..robot_description import RobotDescriptionManager, create_manipulator_description
 from ..ros.logging import logwarn
 from ..units import meter
+
 
 data = ManipulatorData(
     name="panda",
@@ -16,7 +22,8 @@ data = ManipulatorData(
 
     gripper_name="hand",
     gripper_relative_dir=None,
-    gripper_tool_frame="right_finger",
+    gripper_tool_frame="gripper_tool_frame",
+    # transform_tool_frame_by=Transform([0.0, 0.0, 0.1], quaternion_from_euler(0.0, -math.pi/2, 0.0).tolist()),
 
     gripper_joint_names=[f'finger_joint{i}' for i in [1, 2]],
     closed_joint_values=[0.0, 0.0],
