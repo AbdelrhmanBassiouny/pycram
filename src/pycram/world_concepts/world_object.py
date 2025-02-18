@@ -12,7 +12,6 @@ from geometry_msgs.msg import Point, Quaternion
 from trimesh.parent import Geometry3D
 from typing_extensions import Type, Optional, Dict, Tuple, List, Union, Self
 
-import pycrap
 from ..datastructures.dataclasses import (Color, ObjectState, LinkState, JointState,
                                           AxisAlignedBoundingBox, VisualShape, ClosestPointsList,
                                           ContactPointsList, RotatedBoundingBox, VirtualJoint)
@@ -21,13 +20,13 @@ from ..datastructures.pose import Pose, Transform
 from ..datastructures.world import World
 from ..datastructures.world_entity import PhysicalBody, WorldEntity
 from ..description import ObjectDescription, LinkDescription, Joint
-from ..failures import ObjectAlreadyExists, WorldMismatchErrorBetweenObjects, UnsupportedFileExtension, \
+from ..failures import ObjectAlreadyExists, WorldMismatchErrorBetweenAttachedObjects, UnsupportedFileExtension, \
     ObjectDescriptionUndefined
 from ..local_transformer import LocalTransformer
 from ..object_descriptors.generic import ObjectDescription as GenericObjectDescription
 from ..object_descriptors.urdf import ObjectDescription as URDF
-from ..ros.data_types import Time
-from ..ros.logging import logwarn, logerr
+from ..ros import  Time
+from ..ros import  logwarn, logerr
 
 try:
     from ..object_descriptors.mjcf import ObjectDescription as MJCF
@@ -36,7 +35,10 @@ except ImportError:
 from ..robot_description import RobotDescriptionManager, RobotDescription
 from ..world_concepts.constraints import Attachment
 from ..datastructures.mixins import HasConcept
-from pycrap import PhysicalObject, ontology, Base, Agent, Robot
+from pycrap.ontologies import PhysicalObject, ontology, Base, Agent, Joint, \
+    has_child_link, has_parent_link, is_part_of, Robot, Link as CraxLink, Floor, Location, RootLink
+
+from pycrap.urdf_parser import parse_furniture, parse_joint_types
 
 Link = ObjectDescription.Link
 
@@ -55,6 +57,8 @@ class Object(PhysicalBody):
     """
     A dictionary that maps the file extension to the corresponding ObjectDescription type.
     """
+
+    ontology_concept: Type[PhysicalObject] = PhysicalObject
 
     def __init__(self, name: str, concept: Type[PhysicalObject], path: Optional[str] = None,
                  description: Optional[ObjectDescription] = None,
@@ -83,11 +87,14 @@ class Object(PhysicalBody):
         :param scale_mesh: The scale of the mesh.
         """
 
-        super().__init__(-1, world if world is not None else World.current_world, concept)
+        self.world = world if world is not None else World.current_world
+        self.name: str = name
+        super().__init__(-1, self.world, concept)
 
         pose = Pose() if pose is None else pose
 
-        self.name: str = name
+        # set ontology related information
+        self.ontology_concept = concept
         self.path: Optional[str] = path
 
         self._resolve_description(path, description)
@@ -107,7 +114,6 @@ class Object(PhysicalBody):
                                                                                  color=color)
 
             self.description.update_description_from_file(self.path)
-
         # if the object is an agent in the belief state
         if self.is_a_robot and not self.world.is_prospection_world:
             self._update_world_robot_and_description()
@@ -436,9 +442,19 @@ class Object(PhysicalBody):
         for link_name, link_id in self.link_name_to_id.items():
             link_description = self.description.get_link_by_name(link_name)
             if link_name == self.description.get_root():
+                ontology_concept = RootLink
                 self.links[link_name] = self.description.RootLink(self)
+
             else:
                 self.links[link_name] = self.description.Link(link_id, link_description, self)
+                # If the link can be matched to a concept, assign it, else assign PhysicalObject as class.
+                if parse_furniture(link_name):
+                    ontology_concept = parse_furniture(link_name)
+                else:
+                    ontology_concept = PhysicalObject
+                if not self.world.is_prospection_world:
+                    # n_same_link = len(self.world.ontology.search(iri = f"{self.world.ontology.ontology.base_iri}{link_name}$*"))
+                    self.ontology_individual.is_a = [CraxLink]
 
         self.update_link_transforms()
 
@@ -451,7 +467,8 @@ class Object(PhysicalBody):
         for joint_name, joint_id in self.joint_name_to_id.items():
             parsed_joint_description = self.description.get_joint_by_name(joint_name)
             is_virtual = self.is_joint_virtual(joint_name)
-            self.joints[joint_name] = self.description.Joint(joint_id, parsed_joint_description, self, is_virtual)
+            self.joints[joint_name] = self.description.Joint(joint_id, parsed_joint_description, self,
+                                                             is_virtual=is_virtual)
 
     def is_joint_virtual(self, name: str):
         """
@@ -674,16 +691,16 @@ class Object(PhysicalBody):
 
         :return: True if the object is of type environment, False otherwise.
         """
-        return issubclass(self.obj_type, pycrap.Location) or issubclass(self.obj_type, pycrap.Floor)
+        return issubclass(self.obj_type, Location) or issubclass(self.obj_type, Floor)
 
     @property
     def is_a_robot(self) -> bool:
         """
         Check if the object is a robot.
-
+        TODO: Check if this is a the correct filter
         :return: True if the object is a robot, False otherwise.
         """
-        return issubclass(self.obj_type, pycrap.Robot)
+        return issubclass(self.obj_type, Robot)
 
     def merge(self, other: Object, name: Optional[str] = None, pose: Optional[Pose] = None,
               new_description_file: Optional[str] = None) -> Object:
@@ -702,10 +719,9 @@ class Object(PhysicalBody):
         description = self.description.merge_description(other.description, child_pose_wrt_parent=child_pose,
                                                          new_description_file=new_description_file)
         name = self.name if name is None else name
-        path = self.path if new_description_file is None else description.xml_path
         other.remove()
         self.remove()
-        return Object(name, self.obj_type, path, description=description, pose=pose, world=self.world)
+        return Object(name, self.obj_type, description.xml_path, description=description, pose=pose, world=self.world)
 
     def attach(self,
                child_object: Object,
@@ -964,7 +980,7 @@ class Object(PhysicalBody):
         :return: The attachment transform.
         """
         if self.world != child_object.world:
-            raise WorldMismatchErrorBetweenObjects(self, child_object)
+            raise WorldMismatchErrorBetweenAttachedObjects(self, child_object)
         att_transform = attachment.parent_to_child_transform.copy()
         if self.world.is_prospection_world and not attachment.parent_object.world.is_prospection_world:
             att_transform.frame = self.tf_prospection_world_prefix + att_transform.frame
@@ -1084,7 +1100,7 @@ class Object(PhysicalBody):
             target_position = position
         elif isinstance(position, (List, np.ndarray, tuple)):
             if len(position) == 3:
-                target_position = Point(*position)
+                target_position = Point(**dict(zip(["x", "y", "z"], position)))
             else:
                 raise ValueError("The given position has to be a sequence of 3 values.")
         else:
@@ -1109,7 +1125,7 @@ class Object(PhysicalBody):
             target_orientation = orientation
         elif (isinstance(orientation, list) or isinstance(orientation, np.ndarray) or isinstance(orientation, tuple)) \
                 and len(orientation) == 4:
-            target_orientation = Quaternion(*orientation)
+            target_orientation = Quaternion(**dict(zip(["x", "y", "z", "w"], orientation)))
         else:
             raise TypeError("The given orientation has to be a Pose, Quaternion or one of list/tuple/ndarray of xyzw.")
 

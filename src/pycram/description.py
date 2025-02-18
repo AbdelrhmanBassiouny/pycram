@@ -8,8 +8,11 @@ from abc import ABC, abstractmethod
 import trimesh
 from geometry_msgs.msg import Point
 from trimesh.parent import Geometry3D
-from typing_extensions import Tuple, Union, Any, List, Optional, Dict, TYPE_CHECKING, Sequence, Self
+from typing_extensions import Tuple, Union, Any, List, Optional, Dict, TYPE_CHECKING, Sequence, Self, Type
 
+import pycrap
+import pycrap.ontologies
+from pycrap.ontologies import Base, has_child_link, has_parent_link
 from .datastructures.dataclasses import JointState, AxisAlignedBoundingBox, Color, LinkState, VisualShape, \
     MeshVisualShape, RotatedBoundingBox
 from .datastructures.enums import JointType
@@ -17,7 +20,7 @@ from .datastructures.pose import Pose, Transform
 from .datastructures.world_entity import WorldEntity, PhysicalBody
 from .failures import ObjectDescriptionNotFound, LinkHasNoGeometry, LinkGeometryHasNoMesh
 from .local_transformer import LocalTransformer
-from .ros.logging import logwarn_once
+from .ros import logwarn_once, logwarn
 
 if TYPE_CHECKING:
     from .world_concepts.world_object import Object
@@ -192,11 +195,12 @@ class Link(PhysicalBody, ObjectEntity, LinkDescription, ABC):
     A link of an Object in the World.
     """
 
-    def __init__(self, _id: int, link_description: LinkDescription, obj: Object):
-        PhysicalBody.__init__(self, _id, obj.world)
+    def __init__(self, _id: int, link_description: LinkDescription, obj: Object,
+                 concept: Type[Base] = pycrap.ontologies.Link, parse_name: bool = True):
+        self.description = link_description
+        PhysicalBody.__init__(self, _id, obj.world, concept=concept, parse_name=parse_name)
         ObjectEntity.__init__(self, obj)
         LinkDescription.__init__(self, link_description.parsed_description, link_description.mesh_dir)
-        self.description = link_description
         self.local_transformer: LocalTransformer = LocalTransformer()
         self.constraint_ids: Dict[Link, int] = {}
 
@@ -477,7 +481,11 @@ class RootLink(Link, ABC):
     """
 
     def __init__(self, obj: Object):
-        Link.__init__(self, obj.get_root_link_id(), obj.get_root_link_description(), obj)
+        Link.__init__(self, obj.get_root_link_id(), obj.get_root_link_description(), obj,
+                      concept=pycrap.ontologies.RootLink, parse_name=False)
+
+        if not self.world.is_prospection_world:
+            self.ontology_individual.is_part_of = [obj.ontology_individual]
 
     @property
     def tf_frame(self) -> str:
@@ -511,14 +519,28 @@ class Joint(WorldEntity, ObjectEntity, JointDescription, ABC):
 
     def __init__(self, _id: int,
                  joint_description: JointDescription,
-                 obj: Object, is_virtual: Optional[bool] = False):
-        WorldEntity.__init__(self, _id, obj.world)
+                 obj: Object, is_virtual: Optional[bool] = False,
+                 concept: Type[Base] = pycrap.ontologies.Joint):
+        self.description = joint_description
+        WorldEntity.__init__(self, _id, obj.world, concept=concept, parse_name=False)
         ObjectEntity.__init__(self, obj)
         JointDescription.__init__(self, joint_description.parsed_description, is_virtual)
-        self.description = joint_description
+
         self.acceptable_error = (self.world.conf.revolute_joint_position_tolerance if self.type == JointType.REVOLUTE
                                  else self.world.conf.prismatic_joint_position_tolerance)
         self._update_position()
+        self._update_ontology_data()
+
+    def _update_ontology_data(self):
+        """
+        Update the ontology data of this joint and its parent and child links.
+        """
+        if self.world.is_prospection_world:
+            return
+        self.ontology_individual.is_a = [has_child_link.some(self.child_link.ontology_individual)]
+        if self.parent_link.ontology_individual:
+            self.ontology_individual.is_a = [has_parent_link.some(self.parent_link.ontology_individual)]
+            self.child_link.ontology_individual.is_part_of = [self.parent_link.ontology_individual]
 
     @property
     def name(self) -> str:
@@ -596,10 +618,10 @@ class Joint(WorldEntity, ObjectEntity, JointDescription, ABC):
         if self.has_limits:
             low_lim, up_lim = self.limits
             if not low_lim <= joint_position <= up_lim:
-                logging.warning(
+                logwarn(
                     f"The joint position has to be within the limits of the joint. The joint limits for {self.name}"
                     f" are {low_lim} and {up_lim}")
-                logging.warning(f"The given joint position was: {joint_position}")
+                logwarn(f"The given joint position was: {joint_position}")
                 # Temporarily disabled because kdl outputs values exciting joint limits
                 # return
         self.reset_position(joint_position)
@@ -835,7 +857,7 @@ class ObjectDescription(EntityDescription):
                     mesh.apply_transform(transform)
                 path = path.replace(extension, ".obj")
                 mesh.export(path)
-            self.generate_from_mesh_file(path, name, save_path=save_path, color=color, scale=scale_mesh)
+            self.generate_from_mesh_file(path, name, save_path=save_path, color=color)
         elif extension == self.get_file_extension():
             self.generate_from_description_file(path, save_path=save_path)
         else:

@@ -11,7 +11,7 @@ from .datastructures.enums import Arms, Grasp, GripperState, GripperType, JointT
 from .helper import parse_mjcf_actuators, find_multiverse_resources_path, \
     get_robot_description_path
 from .object_descriptors.urdf import ObjectDescription as URDFObject
-from .ros.logging import logerr
+from .ros import  logerr
 from .utils import suppress_stdout_stderr
 
 
@@ -44,16 +44,15 @@ class RobotDescriptionManager:
         :param name: Name of the robot to which the description should be loaded.
         :return: The loaded robot description.
         """
-        if name in self.descriptions.keys():
-            RobotDescription.current_robot_description = self.descriptions[name]
-            return self.descriptions[name]
-        else:
-            for key in self.descriptions.keys():
-                if key in name.lower():
-                    RobotDescription.current_robot_description = self.descriptions[key]
-                    return self.descriptions[key]
-            else:
-                logerr(f"Robot description {name} not found")
+        if RobotDescription.current_robot_description:
+            RobotDescription.current_robot_description.unload()
+
+        for key in self.descriptions.keys():
+            if name in self.descriptions[key].urdf_object.name or key in name.lower():
+                self.descriptions[key].load()
+                return self.descriptions[key]
+        logerr(f"Robot description {name} not found")
+
 
     def register_description(self, description: RobotDescription):
         """
@@ -166,16 +165,19 @@ class RobotDescription:
     def add_arm(self, end_link: str,
                 arm_type: Arms = Arms.RIGHT,
                 arm_name: str = "manipulator",
-                arm_home_values: Optional[Dict[str, float]] = None) -> KinematicChainDescription:
+                arm_home_values: Optional[Dict[str, float]] = None,
+                arm_start: Optional[str] = None) -> KinematicChainDescription:
         """
         Creates and adds an arm to the RobotDescription.
 
         :param end_link: Last link of the arm
         :param arm_type: Type of the arm
         :param arm_name: Name of the arm
-        :param arm_home_values: Dictionary of joint names and their home values
+        :param arm_home_values: Dictionary of joint names and their home values (default configuration) (e.g. park arms)
+        :param arm_start: Start link of the arm
         """
-        arm_start = self.base_link if self.torso_link == '' else self.torso_link
+        if arm_start is None:
+            arm_start = self.base_link if self.torso_link == '' else self.torso_link
         arm = KinematicChainDescription(arm_name, arm_start, end_link,
                                         self.urdf_object, arm_type=arm_type)
 
@@ -401,6 +403,20 @@ class RobotDescription:
             if chain.arm_type == arm:
                 return chain
         raise ValueError(f"There is no Kinematic Chain for the Arm {arm}")
+
+    def load(self):
+        """
+        Loads the robot description in the robot description manager, can be overridden to take more parameter into
+        account.
+        """
+        RobotDescription.current_robot_description = self
+
+    def unload(self):
+        """
+        Unloads the robot description in the robot description manager, can be overridden to take more parameter into
+        account.
+        """
+        RobotDescription.current_robot_description = None
 
 
 class KinematicChainDescription:
@@ -717,9 +733,14 @@ class EndEffectorDescription:
     Name of the gripper of the robot if it has one, this is used when the gripper is a different Object with its own
     description file outside the robot description file.
     """
+    fingers_link_names: Optional[List[str]] = None
+    """
+    List of all links of the fingers of the gripper
+    """
 
     def __init__(self, name: str, start_link: str, tool_frame: str, urdf_object: URDFObject,
-                 gripper_object_name: Optional[str] = None, opening_distance: Optional[float] = None):
+                 gripper_object_name: Optional[str] = None, opening_distance: Optional[float] = None,
+                 fingers_link_names: Optional[List[str]] = None):
         """
         Initialize the EndEffectorDescription object.
 
@@ -728,6 +749,8 @@ class EndEffectorDescription:
         :param tool_frame: Name of the tool frame link in the URDf
         :param urdf_object: URDF object of the robot
         :param gripper_object_name: Name of the gripper if it is a separate Object outside the robot description.
+        :param opening_distance: Distance the gripper can open, in cm.
+        :param fingers_link_names: List of all link names of the fingers of the gripper if it has fingers.
         """
         self.name: str = name
         self.start_link: str = start_link
@@ -739,6 +762,7 @@ class EndEffectorDescription:
         self._init_links_joints()
         self.gripper_object_name = gripper_object_name
         self.opening_distance: Optional[float] = opening_distance
+        self.fingers_link_names: Optional[List[str]] = fingers_link_names
 
     def _init_links_joints(self):
         """

@@ -7,10 +7,11 @@ import time
 
 import numpy as np
 import pycram_bullet as p
+import yaml
 from geometry_msgs.msg import Point
 from typing_extensions import List, Optional, Dict, Any, Callable
 
-from pycrap import Floor
+from pycrap.ontologies import Floor
 from ..datastructures.dataclasses import Color, AxisAlignedBoundingBox, MultiBody, VisualShape, BoxVisualShape, \
     ClosestPoint, LateralFriction, ContactPoint, ContactPointsList, ClosestPointsList, RayResult
 from ..datastructures.enums import ObjectType, WorldMode, JointType
@@ -19,11 +20,12 @@ from ..datastructures.world import World
 from ..datastructures.world_entity import PhysicalBody
 from ..object_descriptors.generic import ObjectDescription as GenericObjectDescription
 from ..object_descriptors.urdf import ObjectDescription
-from ..ros.logging import logwarn, loginfo
+from ..ros import  logwarn, loginfo
 from ..validation.goal_validator import (validate_multiple_joint_positions, validate_joint_position,
                                          validate_object_pose, validate_multiple_object_poses)
 from ..world_concepts.constraints import Constraint
 from ..world_concepts.world_object import Object
+from ..config.world_conf import WorldConfig
 
 Link = ObjectDescription.Link
 RootLink = ObjectDescription.RootLink
@@ -374,7 +376,7 @@ class BulletWorld(World):
                               link_poses=[Pose(), Pose(), Pose()], link_masses=[1.0, 1.0, 1.0],
                               link_inertial_frame_poses=[Pose(), Pose(), Pose()], link_parent_indices=[0, 0, 0],
                               link_joint_types=[JointType.FIXED.value, JointType.FIXED.value, JointType.FIXED.value],
-                              link_joint_axis=[Point(1, 0, 0), Point(0, 1, 0), Point(0, 0, 1)],
+                              link_joint_axis=[Point(x=1, y=0, z=0), Point(x=0, y=1, z=0), Point(x=0, y=0, z=1)],
                               link_collision_shape_indices=[-1, -1, -1])
 
         body_id = self._create_multi_body(multibody)
@@ -484,6 +486,7 @@ class Gui(threading.Thread):
         threading.Thread.__init__(self)
         self.world = world
         self.mode: WorldMode = mode
+        self.camera_button_id = -1
 
         # Checks if there is a display connected to the system. If not, the simulation will be run in direct mode.
         if "DISPLAY" not in os.environ:
@@ -500,17 +503,22 @@ class Gui(threading.Thread):
             self.world.id = p.connect(p.DIRECT)
         else:
             self.world.id = p.connect(p.GUI)
+            self.camera_button_id = p.addUserDebugParameter("Save as Default Camera", 1, 0, 1, physicsClientId=self.world.id)
 
             # DISCLAIMER
-            # This camera control only works if the WorldMooe.GUI BulletWorld is the first one to be created. This is
+            # This camera control only works if the WorldMode.GUI BulletWorld is the first one to be created. This is
             # due to a bug in the function pybullet.getDebugVisualizerCamera() which only returns the information of
             # the first created simulation.
 
             # Disable the side windows of the GUI
             p.configureDebugVisualizer(p.COV_ENABLE_GUI, 0, physicsClientId=self.world.id)
             # Change the init camera pose
-            p.resetDebugVisualizerCamera(cameraDistance=1.5, cameraYaw=270.0, cameraPitch=-50,
-                                         cameraTargetPosition=[-2, 0, 1], physicsClientId=self.world.id)
+            default_camera_config = WorldConfig.default_camera_config
+            p.resetDebugVisualizerCamera(cameraDistance=default_camera_config["dist"],
+                                         cameraYaw=default_camera_config["yaw"],
+                                         cameraPitch=default_camera_config["pitch"],
+                                         cameraTargetPosition=default_camera_config["target_position"],
+                                         physicsClientId=self.world.id)
 
             # Get the initial camera target location
             camera_target_position = p.getDebugVisualizerCamera(physicsClientId=self.world.id)[11]
@@ -529,8 +537,8 @@ class Gui(threading.Thread):
             max_speed = 16
 
             # Set initial Camera Rotation
-            camera_yaw = 50
-            camera_pitch = -35
+            camera_yaw = default_camera_config["yaw"]
+            camera_pitch = default_camera_config["pitch"]
 
             # Keep track of the mouse state
             mouse_state = [0, 0, 0]
@@ -539,8 +547,24 @@ class Gui(threading.Thread):
             # Determines if the sphere at cameraTargetPosition is visible
             visible = 1
 
+            # Initial value for the camera button
+            last_button_value = 1
+
             # Loop to update the camera position based on keyboard events
             while p.isConnected(self.world.id):
+                # Check if Camera button was pressed
+                camera_button_value = p.readUserDebugParameter(self.camera_button_id)
+                if camera_button_value != last_button_value:
+                    last_button_value = camera_button_value
+
+                    current_camera_config = p.getDebugVisualizerCamera()[8:]
+                    v = dict(zip(["yaw", "pitch", "dist", "target_position"], current_camera_config))
+                    v["target_position"] = list(v["target_position"])
+                    yaml_path = os.path.join(os.path.dirname(__file__), "..", "config", 'camera.yaml')
+                    with open(yaml_path, "w") as f:
+                        yaml.dump(v, f)
+
+
                 # Monitor user input
                 keys = p.getKeyboardEvents(self.world.id)
                 mouse = p.getMouseEvents(self.world.id)

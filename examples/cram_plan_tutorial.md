@@ -32,7 +32,7 @@ from pycram.world_concepts.world_object import Object
 import anytree
 import pycram.failures
 import numpy as np
-import pycrap
+from pycrap.ontologies import Milk, Cereal, Robot, Kitchen, Spoon, Apartment, Bowl
 
 np.random.seed(4)
 
@@ -49,9 +49,9 @@ else:
     world = BulletWorld()
     viz_marker_publisher = VizMarkerPublisher()
     
-robot = Object("pr2", pycrap.Robot, "pr2.urdf")
+robot = Object("pr2", Robot, "pr2.urdf")
 robot_desig = ObjectDesignatorDescription(names=['pr2']).resolve()
-apartment = Object("apartment", pycrap.Apartment, "apartment.urdf")
+apartment = Object("apartment", Apartment, "apartment.urdf")
 apartment_desig = ObjectDesignatorDescription(names=['apartment']).resolve()
 table_top_name = "stove" if use_multiverse else "cooktop"
 table_top = apartment.get_link_position(table_top_name)
@@ -89,8 +89,8 @@ def get_n_random_positions(pose_list, n=4, dist=0.5, random=True):
 
 ```python
 import pycrap
-from tf.transformations import quaternion_from_euler
-import pycrap
+from pycram.tf_transformations import quaternion_from_euler
+
 from pycram.costmaps import SemanticCostmap
 from pycram.pose_generator_and_validator import PoseGenerator
 
@@ -104,7 +104,7 @@ poses_list = list(PoseGenerator(edges_cm, number_of_samples=-1))
 poses_list.sort(reverse=True, key=lambda x: np.linalg.norm(x.position_as_list()))
 object_poses = get_n_random_positions(poses_list)
 object_names = ["bowl", "breakfast_cereal", "spoon"]
-object_types = [pycrap.Bowl, pycrap.Cereal, pycrap.Spoon]
+object_types = [Bowl, Cereal, Spoon]
 objects = {}
 object_desig = {}
 for obj_name, obj_type, obj_pose in zip(object_names, object_types, object_poses):
@@ -112,7 +112,7 @@ for obj_name, obj_type, obj_pose in zip(object_names, object_types, object_poses
         z_angle = np.pi
     else:
         z_angle = 0
-    orientation = quaternion_from_euler(0, 0, z_angle).tolist()
+    orientation = quaternion_from_euler(0, 0, z_angle)
     objects[obj_name] = Object(obj_name, obj_type, obj_name + ".stl",
                                pose=Pose([obj_pose.position.x, obj_pose.position.y, table_top.z],
                                          orientation))
@@ -141,7 +141,6 @@ Finally, we create a plan where the robot parks his arms, walks to the kitchen c
 execute the plan.
 
 ```python
-import pycrap
 from pycram.external_interfaces.ik import IKError
 from pycram.datastructures.enums import Grasp
 
@@ -161,7 +160,8 @@ def plan(obj_desig: ObjectDesignatorDescription.Object, torso=None, place=counte
         ParkArmsActionPerformable(Arms.BOTH).perform()
         good_torsos.append(torso)
         picked_up_arm = pose.reachable_arms[0]
-        grasp = Grasp.TOP if issubclass(obj_desig.world_object.obj_type, pycrap.Spoon) else Grasp.FRONT
+        grasp = Grasp.TOP if issubclass(obj_desig.world_object.obj_type, Spoon) else Grasp.FRONT
+        grasp = Grasp.BOTTOM if issubclass(obj_desig.world_object.obj_type, Bowl) else grasp
         PickUpActionPerformable(object_designator=obj_desig, arm=pose.reachable_arms[0], grasp=grasp,
                                 prepose_distance=0.03).perform()
 
@@ -185,7 +185,7 @@ def plan(obj_desig: ObjectDesignatorDescription.Object, torso=None, place=counte
                     z_angle = np.pi
                 else:
                     z_angle = 0
-                orientation = quaternion_from_euler(0, 0, z_angle).tolist()
+                orientation = quaternion_from_euler(0, 0, z_angle)
                 pose_island.pose = Pose(pose_island.pose.position_as_list(), orientation)
                 pose_island.pose.position.z += 0.07
                 print(pose_island.pose.position)
@@ -208,7 +208,7 @@ def plan(obj_desig: ObjectDesignatorDescription.Object, torso=None, place=counte
 good_torsos = []
 for obj_name in object_names:
     done = False
-    torso = {"torso_lift_joint": 0.3}if len(good_torsos) == 0 else good_torsos[-1]
+    torso = {"torso_lift_joint": 0.25}if len(good_torsos) == 0 else good_torsos[-1]
     while not done:
         try:
             plan(object_desig[obj_name], torso=torso, place=counter_name)
@@ -219,8 +219,8 @@ for obj_name in object_names:
         except (StopIteration, IKError) as e:
             print(type(e))
             print("no solution")
-            torso += 0.05
-            if torso > 0.3:
+            torso["torso_lift_joint"] += 0.05
+            if torso["torso_lift_joint"] > 0.3:
                 break
 print(good_torsos)
 ```

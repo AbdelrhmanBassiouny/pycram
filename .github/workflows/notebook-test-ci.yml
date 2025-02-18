@@ -75,10 +75,10 @@ jobs:
       - name: Source and start ROS
         run: |
           source /opt/ros/overlay_ws/devel/setup.bash 
-          roslaunch pycram ik_and_description.launch &
+          roscore &
 
       - name: Run tests
         run: |
           source /opt/ros/overlay_ws/devel/setup.bash 
-          roscd pycram/examples/tmp
+          roscd pycram/examples
           treon --thread 1 -v --exclude=migrate_neems.ipynb --exclude=improving_actions.ipynb
