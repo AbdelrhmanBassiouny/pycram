@@ -92,7 +92,7 @@ class ActionAbstract(ActionDesignatorDescription.Action, abc.ABC):
         """
         pass
 
-    def to_sql(self) -> Action:
+    def to_sql(self) -> ORMAction:
         """
         Convert this action to its ORM equivalent.
 
@@ -114,7 +114,7 @@ class ActionAbstract(ActionDesignatorDescription.Action, abc.ABC):
 
         return self.orm_class(*parameters)
 
-    def insert(self, session: Session, **kwargs) -> Action:
+    def insert(self, session: Session, **kwargs) -> ORMAction:
         """
         Insert this action into the database.
 
@@ -429,10 +429,10 @@ class ReachToPickUpActionPerformable(ActionAbstract):
 
     # TODO find a way to use object_at_execution instead of object_designator in the automatic orm mapping in
     #  ActionAbstract
-    def to_sql(self) -> Action:
+    def to_sql(self) -> ORMAction:
         return ORMReachToPickUpAction(arm=self.arm, grasp=self.grasp, prepose_distance=self.prepose_distance)
 
-    def insert(self, session: Session, **kwargs) -> Action:
+    def insert(self, session: Session, **kwargs) -> ORMAction:
         action = super(ActionAbstract, self).insert(session)
         action.object = self.object_at_execution.insert(session)
         session.add(action)
@@ -520,10 +520,10 @@ class PickUpActionPerformable(ActionAbstract):
 
     # TODO find a way to use object_at_execution instead of object_designator in the automatic orm mapping in
     #  ActionAbstract
-    def to_sql(self) -> Action:
+    def to_sql(self) -> ORMAction:
         return ORMPickUpAction(arm=self.arm, grasp=self.grasp, prepose_distance=self.prepose_distance)
 
-    def insert(self, session: Session, **kwargs) -> Action:
+    def insert(self, session: Session, **kwargs) -> ORMAction:
         action = super(ActionAbstract, self).insert(session)
         action.object = self.object_at_execution.insert(session)
         session.add(action)
@@ -534,6 +534,8 @@ class PickUpActionPerformable(ActionAbstract):
         Check if picked up object is in contact with the gripper.
         """
         if not has_gripper_grasped_body(self.arm, self.world_object):
+            if self.world_object in World.robot.attachments:
+                World.robot.detach(self.world_object)
             raise ObjectNotGraspedError(self.world_object, World.robot, self.arm, self.grasp)
 
     @cached_property
