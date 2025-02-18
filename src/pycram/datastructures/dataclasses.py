@@ -1212,7 +1212,8 @@ class ContactPointsList(list):
         :param body: An instance of the PhysicalBody class that represents the body that the points are related to.
         :return: A ContactPointsList instance that represents the contact points of the body.
         """
-        return ContactPointsList([point for point in self if body == point.body_b])
+        return ContactPointsList([point for point in self if body in [point.body_b, point.body_b.parent_entity,
+                                                                      point.body_a, point.body_a.parent_entity]])
 
     def get_objects_that_got_removed(self, previous_points: ContactPointsList) -> List[Object]:
         """

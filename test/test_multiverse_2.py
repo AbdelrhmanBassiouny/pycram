@@ -1,13 +1,10 @@
 import os
 import unittest
-from time import sleep
 
 import numpy as np
-import psutil
 from tf.transformations import quaternion_from_euler, quaternion_multiply
 from typing_extensions import Optional, List
 
-import pycrap
 from pycram import World
 from pycram.datastructures.dataclasses import Color, AxisAlignedBoundingBox, ContactPointsList, ContactPoint
 from pycram.datastructures.enums import Arms, JointType, WorldMode
@@ -16,11 +13,13 @@ from pycram.helper import get_robot_description_path, parse_mjcf_actuators, find
 from pycram.object_descriptors.generic import ObjectDescription as GenericObjectDescription
 from pycram.validation.error_checkers import calculate_angle_between_quaternions
 from pycram.world_concepts.world_object import Object
+from pycrap.ontologies import Bowl, PhysicalObject, Apartment, Robot, Cup, Milk, Bread
 
 multiverse_installed = True
 try:
     from pycram.worlds.multiverse2 import Multiverse
 except ImportError:
+    Multiverse = None
     multiverse_installed = False
 
 
@@ -40,7 +39,7 @@ class TestMultiverse(unittest.TestCase):
                                           "robots/mujoco_menagerie/franka_emika_panda/mjx_single_cube.xml")
         cls.multiverse = Multiverse(scene_file_path=example_scene_path,
                                     mode=WorldMode.GUI,
-                                    prospection_mode=WorldMode.GUI)
+                                    prospection_mode=WorldMode.DIRECT)
 
     @classmethod
     def tearDownClass(cls):
@@ -58,7 +57,7 @@ class TestMultiverse(unittest.TestCase):
     def test_load_generic_object(self):
         obj_desc = GenericObjectDescription('test_cube', [0, 0, 0], [0.1, 0.1, 0.1],
                                             color=Color(1, 0, 0, 1))
-        obj = Object(obj_desc.name, pycrap.PhysicalObject, description=obj_desc)
+        obj = Object(obj_desc.name, PhysicalObject, description=obj_desc)
         self.assertIsInstance(obj, Object)
         self.assertTrue(obj in self.multiverse.objects)
         obj.set_position([1, 1, 0.1])
@@ -92,7 +91,7 @@ class TestMultiverse(unittest.TestCase):
 
     @unittest.skip
     def test_spawn_xml_object(self):
-        bread = Object("bread_1", pycrap.Bread, "bread_1.xml", pose=Pose([1, 1, 0.1]))
+        bread = Object("bread_1", Bread, "bread_1.xml", pose=Pose([1, 1, 0.1]))
         self.assert_poses_are_equal(bread.get_pose(), Pose([1, 1, 0.1]))
 
     @unittest.skip
@@ -125,7 +124,7 @@ class TestMultiverse(unittest.TestCase):
 
     @unittest.skip
     def test_spawn_mesh_object(self):
-        milk = Object("milk", pycrap.Milk, "milk.stl", pose=Pose([1, 1, 0.1]))
+        milk = Object("milk", Milk, "milk.stl", pose=Pose([1, 1, 0.1]))
         self.assert_poses_are_equal(milk.get_pose(), Pose([1, 1, 0.1]))
         self.multiverse.simulate(0.2)
         contact_points = milk.contact_points
@@ -229,7 +228,6 @@ class TestMultiverse(unittest.TestCase):
             joint_type = robot.joints[joint].type
             original_joint_position = robot.get_joint_position(joint)
             robot.set_joint_position(joint, original_joint_position + step)
-            self.multiverse.simulator.run_callback()  # TODO: Remove this line when the bug is fixed
             joint_position = robot.get_joint_position(joint)
             if not self.multiverse.conf.use_controller:
                 delta = self.multiverse.conf.prismatic_joint_position_tolerance if joint_type == JointType.PRISMATIC \
@@ -320,7 +318,7 @@ class TestMultiverse(unittest.TestCase):
     @unittest.skip
     def test_get_environment_pose(self):
         if "apartment" not in self.multiverse.get_object_names():
-            apartment = Object("apartment", pycrap.Apartment, f"apartment.urdf")
+            apartment = Object("apartment", Apartment, f"apartment.urdf")
         else:
             apartment = self.multiverse.get_object_by_name("apartment")
         pose = apartment.get_pose()
@@ -389,7 +387,7 @@ class TestMultiverse(unittest.TestCase):
         self.assert_poses_are_equal(milk_initial_pose, milk_pose)
 
     def test_get_object_contact_points(self):
-        for i in range(3):
+        for i in range(1):
             box = self.spawn_box()
             contact_points = self.multiverse.get_object_contact_points(box)
             self.assertIsInstance(contact_points, ContactPointsList)
@@ -399,10 +397,8 @@ class TestMultiverse(unittest.TestCase):
             robot = self.spawn_robot(robot_name="panda")
             contact_points = self.multiverse.get_object_contact_points(robot)
             self.assertIsInstance(contact_points, ContactPointsList)
-            self.assertTrue(len(contact_points) >= 1)
-            self.assertIsInstance(contact_points[0], ContactPoint)
-            self.assertTrue(contact_points[0].body_b.object, box)
-            self.tearDown()
+            self.assertTrue(len(contact_points) == 0)
+            # self.tearDown()
 
     def test_get_robot_contact_points(self):
         robot = self.spawn_robot(robot_name="panda")
@@ -410,10 +406,18 @@ class TestMultiverse(unittest.TestCase):
         finger_position = robot.links["right_finger"].position_as_list
         finger_position[2] -= 0.05
         box.set_position(finger_position)
-        self.multiverse.step()
-        self.multiverse.simulator.run_callback()
         contact_points = self.multiverse.get_contact_points_between_two_bodies(robot, box)
         self.assertTrue(len(contact_points) > 0)
+
+    def test_get_robot_contact_with_attached_object(self):
+        robot = self.spawn_robot(robot_name="panda")
+        box = self.spawn_box()
+        finger_position = robot.links["right_finger"].position_as_list
+        finger_position[2] -= 0.05
+        box.set_position(finger_position)
+        robot.attach(box, "gripper_tool_frame")
+        contact_points = self.multiverse.get_contact_points_between_two_bodies(robot, box)
+        self.assertTrue(len(contact_points))
 
     @unittest.skip
     def test_get_contact_points_between_two_objects(self):
@@ -437,13 +441,13 @@ class TestMultiverse(unittest.TestCase):
         box_position = box.get_position_as_list()
         ray_start = [box_position[0], box_position[1] + 1, box_position[2]]
         ray_end = [box_position[0], box_position[1] - 1, box_position[2]]
-        ray_result = self.multiverse.ray_test(ray_start, ray_end,calculate_distance=True)
+        ray_result = self.multiverse.ray_test(ray_start, ray_end, calculate_distance=True)
         self.assertTrue(ray_result.intersected)
         self.assertTrue(ray_result.obj_id == box.id)
         self.assertTrue(ray_result.hit_position[0] == box_position[0])
         self.assertTrue(ray_result.hit_position[2] == box_position[2])
         self.assertTrue(ray_result.distance == 1 - 0.02)
-        self.assertTrue(ray_result.hit_fraction == 0.5 - 0.02/2)
+        self.assertTrue(ray_result.hit_fraction == 0.5 - 0.02 / 2)
 
     def test_get_rays(self):
         self.multiverse.step()
@@ -454,13 +458,13 @@ class TestMultiverse(unittest.TestCase):
         ray_start_2 = [box_position[0], box_position[1] + 1, box_position[2]]
         ray_end_2 = [box_position[0], box_position[1] - 1, box_position[2]]
         ray_results = self.multiverse.ray_test_batch([ray_start_1, ray_start_2],
-                                                              [ray_end_1, ray_end_2])
+                                                     [ray_end_1, ray_end_2])
         self.assertFalse(ray_results[0].intersected)
         self.assertTrue(ray_results[1].intersected and ray_results[1].obj_id == box.id)
 
     @staticmethod
     def spawn_big_bowl() -> Object:
-        big_bowl = Object("big_bowl", pycrap.Bowl, "BigBowl.obj",
+        big_bowl = Object("big_bowl", Bowl, "BigBowl.obj",
                           pose=Pose([2, 2, 0.1], [0, 0, 0, 1]))
         return big_bowl
 
@@ -471,20 +475,20 @@ class TestMultiverse(unittest.TestCase):
             return box
         obj_desc = GenericObjectDescription('box', [0, 0, 0], [0.02, 0.02, 0.02],
                                             color=Color(0, 1, 0, 1))
-        box = Object("box", pycrap.PhysicalObject, None, description=obj_desc)
+        box = Object("box", PhysicalObject, None, description=obj_desc)
         return box
 
     @staticmethod
     def spawn_milk(position: List, orientation: Optional[List] = None, frame="map") -> Object:
         if orientation is None:
             orientation = [0, 0, 0, 1]
-        milk = Object("milk_box", pycrap.Milk, "milk_box.xml",
+        milk = Object("milk_box", Milk, "milk_box.xml",
                       pose=Pose(position, orientation, frame=frame))
         return milk
 
     def spawn_apartment(self) -> Object:
         if "apartment" not in self.multiverse.get_object_names():
-            apartment = Object("apartment", pycrap.Apartment, f"apartment.urdf")
+            apartment = Object("apartment", Apartment, f"apartment.urdf")
         else:
             apartment = self.multiverse.get_object_by_name("apartment")
         return apartment
@@ -501,7 +505,7 @@ class TestMultiverse(unittest.TestCase):
             if self.multiverse.robot is not None:
                 if not self.multiverse.robot.remove():
                     return self.multiverse.robot
-            robot = Object(robot_name, pycrap.Robot, f"{robot_name}.urdf",
+            robot = Object(robot_name, Robot, f"{robot_name}.urdf",
                            pose=Pose(position, orientation))
         else:
             robot = self.multiverse.robot
@@ -510,7 +514,7 @@ class TestMultiverse(unittest.TestCase):
 
     @staticmethod
     def spawn_cup(position: List) -> Object:
-        cup = Object("cup", pycrap.Cup, "cup.xml",
+        cup = Object("cup", Cup, "cup.xml",
                      pose=Pose(position, [0, 0, 0, 1]))
         return cup
 

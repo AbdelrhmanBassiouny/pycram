@@ -1,12 +1,12 @@
 import os
 import threading
+from time import sleep
 
 import numpy as np
 from mujoco_connector.src.mujoco_connector import MultiverseMujocoConnector
 from typing_extensions import List, Optional, Dict, Callable, Type, Tuple, Union
 
-import pycrap
-from pycrap import PhysicalObject
+from pycrap.ontologies import PhysicalObject, Floor
 from ..config.multiverse_conf import MultiverseConfig
 from ..datastructures.dataclasses import Color, ContactPointsList, ContactPoint, LateralFriction, RayResult
 from ..datastructures.enums import WorldMode, JointType, MultiverseJointCMD
@@ -16,9 +16,9 @@ from ..datastructures.world_entity import PhysicalBody
 from ..description import Link, Joint
 from ..failures import ObjectNotFound, LinkNotFound
 from ..object_descriptors.generic import ObjectDescription as GenericObjectDescription
-from ..object_descriptors.mjcf import ObjectDescription as MJCF, PrimitiveObjectFactory
+from ..object_descriptors.mjcf import ObjectDescription as MJCF
 from ..robot_description import RobotDescription
-from ..ros.logging import logwarn, logerr
+from ..ros import logwarn, logerr
 from ..utils import RayTestUtils, xyzw_to_wxyz_arr, adjust_camera_pose_based_on_target, wxyz_to_xyzw_arr
 from ..world_concepts.constraints import Constraint
 from ..world_concepts.world_object import Object
@@ -80,7 +80,7 @@ class Multiverse(World):
                                                    headless=mode == WorldMode.DIRECT,
                                                    real_time_factor=1,
                                                    step_size=self.conf.simulation_time_step.total_seconds())
-        self.simulator.start(run_in_thread=False)
+        self.simulator.start(simulate_in_thread=False, render_in_thread=mode == WorldMode.GUI)
         self.simulator.step()
 
         World.__init__(self, mode=mode, is_prospection=is_prospection, prospection_mode=prospection_mode,
@@ -94,14 +94,6 @@ class Multiverse(World):
             self._spawn_floor()
 
         self.kill_renderer = threading.Event()
-
-        def render_callback():
-            while not self.kill_renderer.is_set():
-                self.simulator.run_callback()
-
-        if self.mode == WorldMode.GUI:
-            self.renderer_thread = threading.Thread(target=render_callback, args=())
-            self.renderer_thread.start()
 
     @property
     def scene_file_path(self) -> str:
@@ -145,7 +137,7 @@ class Multiverse(World):
         """
         Spawn the plane in the simulator.
         """
-        self.floor = Object("floor", pycrap.Floor, "plane.urdf",
+        self.floor = Object("floor", Floor, "plane.urdf",
                             world=self)
 
     def load_object_and_get_id(self, name: Optional[str] = None,
@@ -167,7 +159,7 @@ class Multiverse(World):
         # object_factory = PrimitiveObjectFactory(description.name, description.links[0].geometry, save_path)
         # object_factory.build_shape()
         # object_factory.export_to_mjcf(save_path)
-        return self.load_object_and_get_id(description.name, pose, pycrap.PhysicalObject)
+        return self.load_object_and_get_id(description.name, pose, PhysicalObject)
 
     def get_images_for_target(self, target_pose: Pose,
                               cam_pose: Pose,
@@ -296,12 +288,12 @@ class Multiverse(World):
         return Pose(self._get_body_position(body), self._get_body_orientation(body))
 
     def _get_body_position(self, body: PhysicalBody) -> np.ndarray:
-        if body.parent_entity.ontology_concept == pycrap.Floor:
+        if body.parent_entity.ontology_concept == Floor:
             return np.array([0, 0, 0])
         return self.simulator.get_body_position(body.name).result
 
     def _get_body_orientation(self, body: PhysicalBody) -> np.ndarray:
-        if body.parent_entity.ontology_concept == pycrap.Floor:
+        if body.parent_entity.ontology_concept == Floor:
             return np.array([0, 0, 0, 1])
         quat_arr = self.simulator.get_body_quaternion(body.name).result
         if quat_arr is None:
@@ -422,8 +414,9 @@ class Multiverse(World):
         pass
 
     def get_body_contact_points(self, body: PhysicalBody) -> ContactPointsList:
-        contacts = self.simulator.get_contact_points(body_names=[body.name], including_children=True).result
-        return self._contacts_to_contact_points_list(contacts)
+        contacts = self.simulator.get_contact_points(body_names=["world"], including_children=True).result
+        contact_points_list = self._contacts_to_contact_points_list(contacts)
+        return contact_points_list.get_points_of_body(body)
 
     def get_contact_points_between_two_bodies(self, body_1: PhysicalBody, body_2: PhysicalBody) -> ContactPointsList:
         contacts = self.simulator.get_contact_points(body_names=[body_1.name, body_2.name],
@@ -475,9 +468,10 @@ class Multiverse(World):
         """
         Join the renderer thread.
         """
-        if self.mode == WorldMode.GUI:
-            self.kill_renderer.set()
-            self.renderer_thread.join()
+        pass
+        # if self.mode == WorldMode.GUI:
+        #     self.kill_renderer.set()
+        #     self.renderer_thread.join()
 
     def multiverse_reset_world(self):
         """
@@ -512,7 +506,7 @@ class Multiverse(World):
         return RayResult(link.object_id, link.id, hit_fraction, hit_position, hit_normal)
 
     def _ray_test_batch(self, from_positions: List[List[float]], to_positions: List[List[float]],
-                        num_threads: int = 1) -> List[int]:
+                        num_threads: int = 1) -> List[RayResult]:
         results = []
         for from_position, to_position in zip(from_positions, to_positions):
             results.append(self._ray_test(from_position, to_position))
@@ -538,6 +532,3 @@ class Multiverse(World):
         :return: True if the object exists, False otherwise.
         """
         return obj.name in self.simulator.get_all_body_names().result
-
-
-
