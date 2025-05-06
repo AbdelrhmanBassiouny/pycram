@@ -1,20 +1,17 @@
 from __future__ import annotations
 
-import enum
 import inspect
-import random
 import time
 from dataclasses import field, dataclass
 from datetime import datetime
 
 import networkx as nx
-
-from typing_extensions import Optional, Callable, Any, Dict, List, Self, Iterable, TYPE_CHECKING, Type, Tuple, Iterator
+from pycrap.ontologies import Action
+from typing_extensions import Optional, Callable, Any, Dict, List, Iterable, TYPE_CHECKING, Type, Tuple, Iterator
 
 from .datastructures.enums import TaskStatus
-from pycrap.ontologies import Action
-from .failures import PlanFailure
 from .external_interfaces import giskard
+from .failures import PlanFailure
 from .ros import loginfo
 
 if TYPE_CHECKING:
@@ -28,8 +25,8 @@ class Plan(nx.DiGraph):
     """
     current_plan: Plan = None
 
-    on_start_callback: Optional[Type[Action], Callable] = None
-    on_end_callback: Optional[Type[Action], Callable] = None
+    on_start_callback: Optional[Type[ActionDescription], Callable[[ResolvedActionNode], None]] = None
+    on_end_callback: Optional[Type[ActionDescription], Callable[[ResolvedActionNode], None]] = None
 
     def __init__(self, root: PlanNode):
         super().__init__()
@@ -154,6 +151,54 @@ class Plan(nx.DiGraph):
             if child.is_leaf:
                 child.perform()
 
+    def add_on_start_callback(self, callback: Callable[[ResolvedActionNode], None],
+                              action_type: Type[ActionDescription]):
+        """
+        Adds a callback to be called when an action of the given type is started.
+
+        :param callback: The callback to be called
+        :param action_type: The type of the action
+        """
+        if not self.on_start_callback:
+            self.on_start_callback = {}
+        if action_type not in self.on_start_callback:
+            self.on_start_callback[action_type] = []
+        self.on_start_callback[action_type].append(callback)
+
+    def add_on_end_callback(self, callback: Callable[[ResolvedActionNode], None], action_type: Type[ActionDescription]):
+        """
+        Adds a callback to be called when an action of the given type is ended.
+
+        :param callback: The callback to be called
+        :param action_type: The type of the action
+        """
+        if not self.on_end_callback:
+            self.on_end_callback = {}
+        if action_type not in self.on_end_callback:
+            self.on_end_callback[action_type] = []
+        self.on_end_callback[action_type].append(callback)
+
+    def remove_on_start_callback(self, callback: Callable[[ResolvedActionNode], None], action_type: Type[ActionDescription]):
+        """
+        Removes a callback to be called when an action of the given type is started.
+
+        :param callback: The callback to be removed
+        :param action_type: The type of the action
+        """
+        if self.on_start_callback and action_type in self.on_start_callback:
+            self.on_start_callback[action_type].remove(callback)
+
+    def remove_on_end_callback(self, callback: Callable[[ResolvedActionNode], None], action_type: Type[ActionDescription]):
+        """
+        Removes a callback to be called when an action of the given type is ended.
+
+        :param callback: The callback to be removed
+        :param action_type: The type of the action
+        """
+        if self.on_end_callback and action_type in self.on_end_callback:
+            self.on_end_callback[action_type].remove(callback)
+
+
     @property
     def actions(self) -> List[ActionNode]:
         return list(filter(None, [node if type(node) is ActionNode else None for node in self.nodes]))
@@ -200,9 +245,16 @@ def managed_node(func: Callable) -> Callable:
     :param func: Reference to the perform function of the node
     :return: The wrapped perform function
     """
+
     def wrapper(node: DesignatorNode) -> Any:
         node.status = TaskStatus.RUNNING
         node.start_time = datetime.now()
+        # on_start_callbacks = (node.plan.on_start_callback.get(node.action, []) +
+        #                       node.plan.on_start_callback.get(ActionDescription, []))
+        # on_end_callbacks = (node.plan.on_end_callback.get(node.action, []) +
+        #                     node.plan.on_end_callback.get(ActionDescription, []))
+        # for call_back in on_start_callbacks:
+        #     call_back(node)
         result = None
         try:
             node.plan.current_node = node
@@ -216,6 +268,8 @@ def managed_node(func: Callable) -> Callable:
         finally:
             node.end_time = datetime.now()
             node.plan.current_node = node.parent
+            # for call_back in on_end_callbacks:
+            #     call_back(node)
         return result
 
     return wrapper

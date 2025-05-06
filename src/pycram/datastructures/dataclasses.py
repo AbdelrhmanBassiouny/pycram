@@ -5,13 +5,11 @@ import math
 from abc import ABC, abstractmethod
 from copy import deepcopy, copy
 from dataclasses import dataclass, fields, field
-from enum import Enum
 
 import numpy as np
 import plotly.graph_objects as go
 import trimesh
 from matplotlib import pyplot as plt
-from std_msgs.msg import ColorRGBA
 
 from random_events.interval import closed, SimpleInterval, Bound
 from random_events.product_algebra import SimpleEvent, Event
@@ -20,10 +18,9 @@ from typing_extensions import List, Optional, Tuple, Callable, Dict, Any, Union,
     deprecated, Type
 
 from pycrap.ontologies import PhysicalObject
-from .enums import JointType, Shape, VirtualMobileBaseJointName, Grasp, AxisIdentifier
+from .enums import JointType, Shape, VirtualMobileBaseJointName, Grasp, Color
 from .pose import PoseStamped, Point, TransformStamped
-from ..ros import logwarn, logwarn_once
-from ..utils import classproperty
+from ..ros import logwarn_once
 from ..validation.error_checkers import calculate_joint_position_error, is_error_acceptable
 
 if TYPE_CHECKING:
@@ -31,7 +28,6 @@ if TYPE_CHECKING:
     from ..world_concepts.world_object import Object
     from ..world_concepts.constraints import Attachment
     from .world_entity import PhysicalBody
-    from .world import World
 
 
 @dataclass
@@ -119,95 +115,6 @@ def get_point_as_list(point: Point) -> List[float]:
     :return: The point as a list
     """
     return [point.x, point.y, point.z]
-
-
-@dataclass
-class Color:
-    """
-    Dataclass for storing rgba_color as an RGBA value.
-    The values are stored as floats between 0 and 1.
-    The default rgba_color is white. 'A' stands for the opacity.
-    """
-    R: float = 1
-    G: float = 1
-    B: float = 1
-    A: float = 1
-
-    @classmethod
-    def from_list(cls, color: List[float]):
-        """
-        Set the rgba_color from a list of RGBA values.
-
-        :param color: The list of RGBA values
-        """
-        if len(color) == 3:
-            return cls.from_rgb(color)
-        elif len(color) == 4:
-            return cls.from_rgba(color)
-        else:
-            raise ValueError("Color list must have 3 or 4 elements")
-
-    @classmethod
-    def from_rgb(cls, rgb: List[float]):
-        """
-        Set the rgba_color from a list of RGB values.
-
-        :param rgb: The list of RGB values
-        """
-        return cls(rgb[0], rgb[1], rgb[2], 1)
-
-    @classmethod
-    def from_rgba(cls, rgba: List[float]):
-        """
-        Set the rgba_color from a list of RGBA values.
-
-        :param rgba: The list of RGBA values
-        """
-        return cls(rgba[0], rgba[1], rgba[2], rgba[3])
-
-    def get_rgba(self) -> List[float]:
-        """
-        Return the rgba_color as a list of RGBA values.
-
-        :return: The rgba_color as a list of RGBA values
-        """
-        return [self.R, self.G, self.B, self.A]
-
-    def get_rgb(self) -> List[float]:
-        """
-        Return the rgba_color as a list of RGB values.
-
-        :return: The rgba_color as a list of RGB values
-        """
-        return [self.R, self.G, self.B]
-
-
-class Colors(Color, Enum):
-    """
-    Enum for easy access to some common colors.
-    """
-    PINK = (1, 0, 1, 1)
-    BLACK = (0, 0, 0, 1)
-    WHITE = (1, 1, 1, 1)
-    RED = (1, 0, 0, 1)
-    GREEN = (0, 1, 0, 1)
-    BLUE = (0, 0, 1, 1)
-    YELLOW = (1, 1, 0, 1)
-    CYAN = (0, 1, 1, 1)
-    MAGENTA = (1, 0, 1, 1)
-    GREY = (0.5, 0.5, 0.5, 1)
-
-    @classmethod
-    def from_string(cls, color: str) -> Color:
-        """
-        Set the rgba_color from a string. If the string is not a valid color, it will return the color WHITE.
-
-        :param color: The string of the color
-        """
-        try:
-            return cls[color.upper()]
-        except KeyError:
-            return cls.WHITE
 
 
 @dataclass

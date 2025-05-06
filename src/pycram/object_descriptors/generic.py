@@ -6,8 +6,9 @@ from typing_extensions import List, Any, Union, Dict, Self, TYPE_CHECKING
 
 from .urdf import ObjectDescription as UrdfObjectDescription
 from ..config.world_conf import WorldConfig
-from ..datastructures.dataclasses import VisualShape, BoxVisualShape, Color, AxisAlignedBoundingBox, RotatedBoundingBox, \
+from ..datastructures.dataclasses import VisualShape, BoxVisualShape, AxisAlignedBoundingBox, RotatedBoundingBox, \
     BoundingBox
+from ..datastructures.enums import Color
 from ..datastructures.enums import JointType
 from ..datastructures.pose import PoseStamped
 from ..description import JointDescription as AbstractJointDescription, LinkDescription as AbstractLinkDescription, \

@@ -13,7 +13,8 @@ from pycrap import PhysicalObject
 from .multiverse_communication.client_manager import MultiverseClientManager
 from .multiverse_communication.clients import MultiverseController, MultiverseReader, MultiverseWriter, MultiverseAPI
 from ..config.multiverse_conf import MultiverseConfig
-from ..datastructures.dataclasses import Color, ContactPointsList, ContactPoint, RayResult
+from ..datastructures.dataclasses import ContactPointsList, ContactPoint, RayResult
+from ..datastructures.enums import Color
 from ..datastructures.enums import WorldMode, JointType, MultiverseBodyProperty, MultiverseJointPosition, \
     MultiverseJointCMD
 from ..datastructures.pose import PoseStamped

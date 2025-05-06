@@ -4,7 +4,7 @@ import numpy as np
 from typing_extensions import List, TYPE_CHECKING
 from scipy.spatial.transform import Rotation as R
 
-from ..datastructures.dataclasses import Colors
+from ..datastructures.enums import Colors
 from ..datastructures.world import World
 from ..designators.motion_designator import *
 from ..external_interfaces import giskard

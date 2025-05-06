@@ -11,7 +11,7 @@ from .ros import  loginfo
 
 if TYPE_CHECKING:
     from .description import ObjectDescription
-    from .datastructures.dataclasses import Color
+    from .datastructures.enums import Color
     from .datastructures.pose import TransformStamped
 
 

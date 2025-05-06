@@ -8,9 +8,10 @@ from deprecated import deprecated
 from trimesh.parent import Geometry3D
 from typing_extensions import Type, Optional, Dict, Tuple, List, Union
 
-from ..datastructures.dataclasses import (Color, ObjectState, LinkState, JointState,
+from ..datastructures.dataclasses import (ObjectState, LinkState, JointState,
                                           AxisAlignedBoundingBox, VisualShape, ClosestPointsList,
                                           ContactPointsList, RotatedBoundingBox, VirtualJoint, FrozenObject, FrozenLink, FrozenJoint)
+from ..datastructures.enums import Color
 from ..datastructures.enums import ObjectType, JointType
 from ..datastructures.pose import PoseStamped, TransformStamped, Point, Quaternion, Vector3
 from ..datastructures.world import World

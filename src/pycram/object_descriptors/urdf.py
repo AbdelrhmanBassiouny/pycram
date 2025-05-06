@@ -13,8 +13,9 @@ from urdf_parser_py.urdf import (URDF, Collision, Box as URDF_Box, Cylinder as U
                                  Sphere as URDF_Sphere, Mesh as URDF_Mesh)
 
 from ..ros import get_ros_package_path
-from ..datastructures.dataclasses import Color, VisualShape, BoxVisualShape, CylinderVisualShape, \
+from ..datastructures.dataclasses import VisualShape, BoxVisualShape, CylinderVisualShape, \
     SphereVisualShape, MeshVisualShape
+from ..datastructures.enums import Color
 from ..datastructures.enums import JointType
 from ..datastructures.pose import PoseStamped, Point
 from ..description import JointDescription as AbstractJointDescription, \

@@ -18,12 +18,13 @@ from pycrap.ontologies.crax.rules import HierarchicalContainment, CRAXRule
 from pycrap.ontology_wrapper import OntologyWrapper
 from ..cache_manager import CacheManager
 from ..config.world_conf import WorldConfig
-from ..datastructures.dataclasses import (Color, AxisAlignedBoundingBox, CollisionCallbacks,
+from ..datastructures.dataclasses import (AxisAlignedBoundingBox, CollisionCallbacks,
                                           MultiBody, VisualShape, BoxVisualShape, CylinderVisualShape,
                                           SphereVisualShape,
                                           CapsuleVisualShape, PlaneVisualShape, MeshVisualShape,
                                           ObjectState, WorldState, ClosestPointsList,
                                           ContactPointsList, VirtualMobileBaseJoints, RotatedBoundingBox, RayResult)
+from .enums import Color
 from ..datastructures.enums import JointType, WorldMode, Arms, AdjacentBodyMethod as ABM
 from ..datastructures.pose import PoseStamped, TransformStamped
 from ..datastructures.world_entity import PhysicalBody, WorldEntity

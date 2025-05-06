@@ -15,8 +15,9 @@ from typing_extensions import Tuple, Union, Any, List, Optional, Dict, TYPE_CHEC
 import pycrap
 import pycrap.ontologies
 from pycrap.ontologies import Base, has_child_link, has_parent_link
-from .datastructures.dataclasses import JointState, AxisAlignedBoundingBox, Color, LinkState, VisualShape, \
+from .datastructures.dataclasses import JointState, AxisAlignedBoundingBox, LinkState, VisualShape, \
     MeshVisualShape, RotatedBoundingBox
+from .datastructures.enums import Color
 from .datastructures.enums import JointType
 from .datastructures.pose import PoseStamped, TransformStamped, Point
 from .datastructures.world_entity import WorldEntity, PhysicalBody

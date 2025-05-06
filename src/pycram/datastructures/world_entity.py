@@ -10,9 +10,9 @@ from trimesh.parent import Geometry3D
 from typing_extensions import TYPE_CHECKING, Dict, Optional, List, deprecated, Union, Type, Tuple
 
 from pycrap.ontologies import PhysicalObject, Room, Location
-from .dataclasses import State, ContactPointsList, ClosestPointsList, Color, PhysicalBodyState, \
+from .dataclasses import State, ContactPointsList, ClosestPointsList, PhysicalBodyState, \
     AxisAlignedBoundingBox, RotatedBoundingBox, RayResult
-from .enums import AdjacentBodyMethod, AxisIdentifier, Arms, Grasp
+from .enums import AdjacentBodyMethod, AxisIdentifier, Arms, Grasp, Color
 from .mixins import HasConcept
 from ..local_transformer import LocalTransformer
 from ..ros import Time, logdebug

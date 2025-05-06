@@ -17,7 +17,8 @@ from random_events.variable import Continuous
 from .tf_transformations import quaternion_from_matrix, quaternion_from_euler
 from typing_extensions import Tuple, List, Optional, Iterator
 
-from .datastructures.dataclasses import BoxVisualShape, Color
+from .datastructures.dataclasses import BoxVisualShape
+from .datastructures.enums import Color
 from .datastructures.pose import TransformStamped
 from .ros import logwarn
 from .datastructures.dataclasses import AxisAlignedBoundingBox

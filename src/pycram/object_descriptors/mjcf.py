@@ -8,8 +8,9 @@ from dm_control import mjcf
 from geometry_msgs.msg import Point
 from typing_extensions import Union, List, Optional, Dict, Tuple, Self
 
-from ..datastructures.dataclasses import Color, VisualShape, BoxVisualShape, CylinderVisualShape, \
+from ..datastructures.dataclasses import VisualShape, BoxVisualShape, CylinderVisualShape, \
     SphereVisualShape, MeshVisualShape, VisualShapeUnion
+from ..datastructures.enums import Color
 from ..datastructures.enums import JointType, MJCFGeomType, MJCFJointType, Shape
 from ..datastructures.pose import PoseStamped
 from ..description import JointDescription as AbstractJointDescription, \
