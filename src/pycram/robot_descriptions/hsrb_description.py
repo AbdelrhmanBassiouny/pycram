@@ -5,6 +5,7 @@ from ..robot_description import RobotDescription, KinematicChainDescription, End
 from ..datastructures.enums import GripperState, Grasp, Arms, TorsoState, GripperType, StaticJointState
 from ..units import meter
 
+
 filename = get_ros_package_path('pycram') + '/resources/robots/' + "hsrb" + '.urdf'
 
 hsrb_description = RobotDescription("hsrb", "base_link", "arm_lift_link", "arm_lift_joint",
@@ -63,13 +64,10 @@ hsrb_description.add_camera_description(hand_camera)
 ################################## Neck ##################################
 neck = KinematicChainDescription("neck", "head_pan_link", "head_tilt_link",
                                  hsrb_description.urdf_object)
+hsrb_description.set_neck(yaw_joint="head_pan_joint", pitch_joint="head_tilt_joint")
 
-################################## Grasps ##################################
-hsrb_description.add_grasp_orientations(
-    {Grasp.FRONT: [-1, 0, -1, 0],
-     Grasp.LEFT: [0, -1, 1, 0],
-     Grasp.RIGHT: [0, -1, -1, 0.0],
-     Grasp.TOP: [-1, 0, 0, 0]})
+################################# Grasps ##################################
+left_gripper.update_all_grasp_orientations([-1, 0, -1, 0])
 
 hsrb_description.add_kinematic_chain_description(neck)
 

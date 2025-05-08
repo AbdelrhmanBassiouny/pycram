@@ -1,32 +1,27 @@
 from __future__ import annotations
 
-import logging
 import os
-from functools import cached_property
 from pathlib import Path
 
 import numpy as np
-import owlready2
 from deprecated import deprecated
-from geometry_msgs.msg import Point, Quaternion
 from trimesh.parent import Geometry3D
-from typing_extensions import Type, Optional, Dict, Tuple, List, Union, Self
+from typing_extensions import Type, Optional, Dict, Tuple, List, Union
 
 from ..datastructures.dataclasses import (Color, ObjectState, LinkState, JointState,
                                           AxisAlignedBoundingBox, VisualShape, ClosestPointsList,
-                                          ContactPointsList, RotatedBoundingBox, VirtualJoint)
+                                          ContactPointsList, RotatedBoundingBox, VirtualJoint, FrozenObject, FrozenLink, FrozenJoint)
 from ..datastructures.enums import ObjectType, JointType
-from ..datastructures.pose import Pose, Transform
+from ..datastructures.pose import PoseStamped, TransformStamped, Point, Quaternion, Vector3
 from ..datastructures.world import World
-from ..datastructures.world_entity import PhysicalBody, WorldEntity
+from ..datastructures.world_entity import PhysicalBody
 from ..description import ObjectDescription, LinkDescription, Joint
 from ..failures import ObjectAlreadyExists, WorldMismatchErrorBetweenAttachedObjects, UnsupportedFileExtension, \
     ObjectDescriptionUndefined
 from ..local_transformer import LocalTransformer
 from ..object_descriptors.generic import ObjectDescription as GenericObjectDescription
 from ..object_descriptors.urdf import ObjectDescription as URDF
-from ..ros import  Time
-from ..ros import  logwarn, logerr
+from ..ros import logwarn, logerr, Time
 
 try:
     from ..object_descriptors.mjcf import ObjectDescription as MJCF
@@ -34,11 +29,8 @@ except ImportError:
     MJCF = None
 from ..robot_description import RobotDescriptionManager, RobotDescription
 from ..world_concepts.constraints import Attachment
-from ..datastructures.mixins import HasConcept
-from pycrap.ontologies import PhysicalObject, ontology, Base, Agent, Joint, \
-    has_child_link, has_parent_link, is_part_of, Robot, Link as CraxLink, Floor, Location, RootLink
-
-from pycrap.urdf_parser import parse_furniture, parse_joint_types
+from pycrap.ontologies import PhysicalObject, Joint, \
+    Robot, Floor, Location, Bowl, Spoon, Cereal
 
 Link = ObjectDescription.Link
 
@@ -62,12 +54,12 @@ class Object(PhysicalBody):
 
     def __init__(self, name: str, concept: Type[PhysicalObject], path: Optional[str] = None,
                  description: Optional[ObjectDescription] = None,
-                 pose: Optional[Pose] = None,
+                 pose: Optional[PoseStamped] = None,
                  world: Optional[World] = None,
                  color: Optional[Color] = None,
                  ignore_cached_files: bool = False,
                  scale_mesh: Optional[float] = None,
-                 mesh_transform: Optional[Transform] = None):
+                 mesh_transform: Optional[TransformStamped] = None):
         """
         The constructor loads the description file into the given World, if no World is specified the
         :py:attr:`~World.current_world` will be used. It is also possible to load .obj and .stl file into the World.
@@ -89,12 +81,10 @@ class Object(PhysicalBody):
 
         self.world = world if world is not None else World.current_world
         self.name: str = name
-        super().__init__(-1, self.world, concept)
+        super().__init__(-1, self.world, concept=concept)
 
-        pose = Pose() if pose is None else pose
+        pose = PoseStamped() if pose is None else pose
 
-        # set ontology related information
-        self.ontology_concept = concept
         self.path: Optional[str] = path
 
         self._resolve_description(path, description)
@@ -133,6 +123,10 @@ class Object(PhysicalBody):
         self.attachments: Dict[Object, Attachment] = {}
 
         self.world.add_object(self)
+
+    @property
+    def parts(self) -> Dict[str, PhysicalBody]:
+        return self.links
 
     @property
     def tf_frame(self) -> str:
@@ -181,11 +175,11 @@ class Object(PhysicalBody):
                 for link_name, color in rgba_color.items():
                     self.links[link_name].color = color
 
-    def get_mesh_path(self) -> str:
+    def get_mesh_path(self) -> List[str]:
         """
         Get the path to the mesh file of the object.
 
-        :return: The path to the mesh file.
+        :return: The path(s) to the mesh file(s).
         """
         if self.has_one_link:
             return self.root_link.get_mesh_path()
@@ -212,7 +206,7 @@ class Object(PhysicalBody):
         else:
             raise UnsupportedFileExtension(self.name, path)
 
-    def set_mobile_robot_pose(self, pose: Pose) -> None:
+    def set_mobile_robot_pose(self, pose: PoseStamped) -> None:
         """
         Set the goal for the mobile base joints of a mobile robot to reach a target pose. This is used for example when
         the simulator does not support setting the pose of the robot directly (e.g. MuJoCo).
@@ -223,7 +217,7 @@ class Object(PhysicalBody):
         goal = {vj.name: pos for vj, pos in goal.items()}
         self.set_multiple_joint_positions(goal)
 
-    def get_mobile_base_joint_goal(self, pose: Pose) -> Dict[VirtualJoint, float]:
+    def get_mobile_base_joint_goal(self, pose: PoseStamped) -> Dict[VirtualJoint, float]:
         """
         Get the goal for the mobile base joints of a mobile robot to reach a target pose.
 
@@ -237,7 +231,7 @@ class Object(PhysicalBody):
                 mobile_base_joints.translation_y: pose.position.y,
                 mobile_base_joints.angular_z: pose.z_angle}
 
-    def get_mobile_base_pose_difference(self, pose: Pose) -> Tuple[Point, float]:
+    def get_mobile_base_pose_difference(self, pose: PoseStamped) -> Tuple[Point, float]:
         """
         Get the difference between the current and the target pose of the mobile base.
 
@@ -296,7 +290,7 @@ class Object(PhysicalBody):
         """
         return self.world.get_multiple_link_orientations(links)
 
-    def get_multiple_link_poses(self, links: List[Link]) -> Dict[str, Pose]:
+    def get_multiple_link_poses(self, links: List[Link]) -> Dict[str, PoseStamped]:
         """
         Get the poses of multiple links of the object.
 
@@ -305,7 +299,7 @@ class Object(PhysicalBody):
         """
         return self.world.get_multiple_link_poses(links)
 
-    def get_poses_of_attached_objects(self) -> Dict[Object, Pose]:
+    def get_poses_of_attached_objects(self) -> Dict[Object, PoseStamped]:
         """
         Get the poses of the attached objects.
 
@@ -314,7 +308,7 @@ class Object(PhysicalBody):
         return {child_object: attachment.get_child_object_pose()
                 for child_object, attachment in self.attachments.items() if not attachment.loose}
 
-    def get_target_poses_of_attached_objects_given_parent(self, pose: Pose) -> Dict[Object, Pose]:
+    def get_target_poses_of_attached_objects_given_parent(self, pose: PoseStamped) -> Dict[Object, PoseStamped]:
         """
         Get the target poses of the attached objects of an object. Given the pose of the parent object. (i.e. the poses
          to which the attached objects will move when the parent object is at the given pose)
@@ -349,7 +343,7 @@ class Object(PhysicalBody):
         return self.world.get_object_pose(self)
 
     @pose.setter
-    def pose(self, pose: Pose):
+    def pose(self, pose: PoseStamped):
         """
         Set the pose of the object.
         """
@@ -360,7 +354,7 @@ class Object(PhysicalBody):
         """
         The current transform of the object.
         """
-        return self.get_pose().to_transform(self.tf_frame)
+        return self.get_pose().to_transform_stamped(self.tf_frame)
 
     @property
     def obj_type(self) -> Type[PhysicalObject]:
@@ -442,19 +436,9 @@ class Object(PhysicalBody):
         for link_name, link_id in self.link_name_to_id.items():
             link_description = self.description.get_link_by_name(link_name)
             if link_name == self.description.get_root():
-                ontology_concept = RootLink
                 self.links[link_name] = self.description.RootLink(self)
-
             else:
                 self.links[link_name] = self.description.Link(link_id, link_description, self)
-                # If the link can be matched to a concept, assign it, else assign PhysicalObject as class.
-                if parse_furniture(link_name):
-                    ontology_concept = parse_furniture(link_name)
-                else:
-                    ontology_concept = PhysicalObject
-                if not self.world.is_prospection_world:
-                    # n_same_link = len(self.world.ontology.search(iri = f"{self.world.ontology.ontology.base_iri}{link_name}$*"))
-                    self.ontology_individual.is_a = [CraxLink]
 
         self.update_link_transforms()
 
@@ -521,7 +505,7 @@ class Object(PhysicalBody):
         """
         return self.links[link_name]
 
-    def get_link_pose(self, link_name: str) -> Pose:
+    def get_link_pose(self, link_name: str) -> PoseStamped:
         """
         Return the pose of the link with the given name.
 
@@ -546,7 +530,7 @@ class Object(PhysicalBody):
         :param link_name: The name of the link.
         :return: The position of the link.
         """
-        return self.links[link_name].position_as_list
+        return self.links[link_name].position.to_list()
 
     def get_link_orientation(self, link_name: str) -> Quaternion:
         """
@@ -564,7 +548,7 @@ class Object(PhysicalBody):
         :param link_name: The name of the link.
         :return: The orientation of the link.
         """
-        return self.links[link_name].orientation_as_list
+        return self.links[link_name].orientation.to_list()
 
     def get_link_tf_frame(self, link_name: str) -> str:
         """
@@ -575,7 +559,8 @@ class Object(PhysicalBody):
         """
         return self.links[link_name].tf_frame
 
-    def get_link_axis_aligned_bounding_box(self, link_name: str, transform_to_link_pose: bool = True) -> AxisAlignedBoundingBox:
+    def get_link_axis_aligned_bounding_box(self, link_name: str,
+                                           transform_to_link_pose: bool = True) -> AxisAlignedBoundingBox:
         """
         Return the axis aligned bounding box of the link with the given name.
 
@@ -585,7 +570,7 @@ class Object(PhysicalBody):
         """
         return self.links[link_name].get_axis_aligned_bounding_box(transform_to_link_pose)
 
-    def get_transform_between_links(self, from_link: str, to_link: str) -> Transform:
+    def get_transform_between_links(self, from_link: str, to_link: str) -> TransformStamped:
         """
         Return the transform between two links.
 
@@ -612,16 +597,25 @@ class Object(PhysicalBody):
         """
         self.links[link_name].color = Color.from_list(color)
 
-    def get_link_geometry(self, link_name: str) -> Union[VisualShape, None]:
+    def get_link_geometry(self, link_name: str) -> List[VisualShape]:
         """
-        Return the geometry of the link with the given name.
+        Return the collision geometry of the link with the given name.
 
         :param link_name: The name of the link.
-        :return: The geometry of the link.
+        :return: List of the collision geometry of the link.
         """
         return self.links[link_name].geometry
 
-    def get_link_transform(self, link_name: str) -> Transform:
+    def get_link_visual_geometry(self, link_name: str) -> List[VisualShape]:
+        """
+        Return the visual geometry of the link with the given name.
+
+        :param link_name: The name of the link.
+        :return: The visual geometry of the link.
+        """
+        return self.links[link_name].visual_geometry
+
+    def get_link_transform(self, link_name: str) -> TransformStamped:
         """
         Return the transform of the link with the given name.
 
@@ -630,7 +624,7 @@ class Object(PhysicalBody):
         """
         return self.links[link_name].transform
 
-    def get_link_origin(self, link_name: str) -> Pose:
+    def get_link_origin(self, link_name: str) -> PoseStamped:
         """
         Return the origin of the link with the given name.
 
@@ -639,7 +633,7 @@ class Object(PhysicalBody):
         """
         return self.links[link_name].origin
 
-    def get_link_origin_transform(self, link_name: str) -> Transform:
+    def get_link_origin_transform(self, link_name: str) -> TransformStamped:
         """
         Return the origin transform of the link with the given name.
 
@@ -678,11 +672,28 @@ class Object(PhysicalBody):
 
         :param remove_saved_states: If True the saved states will be removed.
         """
+        self.reset_concepts()
         self.detach_all()
-        self.reset_all_joints_positions()
+        self.reset_all_links()
+        self.reset_all_joints()
         self.set_pose(self.original_pose)
         if remove_saved_states:
             self.remove_saved_states()
+
+    def reset_all_joints(self) -> None:
+        """
+        Reset all joints of the object.
+        """
+        for joint in self.joints.values():
+            joint.reset_concepts()
+        self.reset_all_joints_positions()
+
+    def reset_all_links(self) -> None:
+        """
+        Reset all links of the object.
+        """
+        for link in self.links.values():
+            link.reset()
 
     @property
     def is_an_environment(self) -> bool:
@@ -702,7 +713,7 @@ class Object(PhysicalBody):
         """
         return issubclass(self.obj_type, Robot)
 
-    def merge(self, other: Object, name: Optional[str] = None, pose: Optional[Pose] = None,
+    def merge(self, other: Object, name: Optional[str] = None, pose: Optional[PoseStamped] = None,
               new_description_file: Optional[str] = None) -> Object:
         """
         Merge the object with another object. This is done by merging the descriptions of the objects,
@@ -719,9 +730,11 @@ class Object(PhysicalBody):
         description = self.description.merge_description(other.description, child_pose_wrt_parent=child_pose,
                                                          new_description_file=new_description_file)
         name = self.name if name is None else name
+        color = self.color if isinstance(self.color, Color) else self.color[self.root_link.name]
         other.remove()
         self.remove()
-        return Object(name, self.obj_type, description.xml_path, description=description, pose=pose, world=self.world)
+        return Object(name, self.obj_type, description.xml_path, description=description, pose=pose, world=self.world,
+                      color=color)
 
     def attach(self,
                child_object: Object,
@@ -729,7 +742,7 @@ class Object(PhysicalBody):
                child_link: Optional[str] = None,
                bidirectional: bool = True,
                coincide_the_objects: bool = False,
-               parent_to_child_transform: Optional[Transform] = None) -> None:
+               parent_to_child_transform: Optional[TransformStamped] = None) -> None:
         """
         Attach another object to this object. This is done by
         saving the transformation between the given link, if there is one, and
@@ -751,7 +764,7 @@ class Object(PhysicalBody):
         child_link = child_object.links[child_link] if child_link else child_object.root_link
 
         if coincide_the_objects and parent_to_child_transform is None:
-            parent_to_child_transform = Transform()
+            parent_to_child_transform = TransformStamped.from_list()
         attachment = Attachment(parent_link, child_link, bidirectional, parent_to_child_transform)
 
         self.attachments[child_object] = attachment
@@ -792,7 +805,7 @@ class Object(PhysicalBody):
         """
         return self.get_pose().position
 
-    def get_orientation(self) -> Pose.orientation:
+    def get_orientation(self) -> PoseStamped.orientation:
         """
         Return the orientation of this object as a list of xyzw, representing a quaternion.
 
@@ -806,7 +819,7 @@ class Object(PhysicalBody):
 
         :return: The current position of this object
         """
-        return self.get_pose().position_as_list()
+        return self.get_pose().position.to_list()
 
     def get_base_position_as_list(self) -> List[float]:
         """
@@ -814,7 +827,7 @@ class Object(PhysicalBody):
 
         :return: The current position of this object
         """
-        return self.get_base_origin().position_as_list()
+        return self.get_base_origin().position.to_list()
 
     def get_orientation_as_list(self) -> List[float]:
         """
@@ -822,9 +835,9 @@ class Object(PhysicalBody):
 
         :return: A list of xyzw
         """
-        return self.get_pose().orientation_as_list()
+        return self.get_pose().orientation.to_list()
 
-    def get_pose(self) -> Pose:
+    def get_pose(self) -> PoseStamped:
         """
         Return the position of this object as a list of xyz. Alias for :func:`~Object.get_position`.
 
@@ -832,7 +845,7 @@ class Object(PhysicalBody):
         """
         return self.pose
 
-    def set_pose(self, pose: Pose, base: bool = False, set_attachments: bool = True) -> None:
+    def set_pose(self, pose: PoseStamped, base: bool = False, set_attachments: bool = True) -> None:
         """
         Set the Pose of the object.
 
@@ -842,14 +855,14 @@ class Object(PhysicalBody):
         """
         pose_in_map = self.local_transformer.transform_pose(pose, "map")
         if base:
-            pose_in_map.position = (np.array(pose_in_map.position_as_list()) + self.base_origin_shift).tolist()
+            pose_in_map.position = Vector3.from_list(np.array(pose_in_map.position.to_list()) + self.base_origin_shift)
 
         self.reset_base_pose(pose_in_map)
 
         if set_attachments:
             self._set_attached_objects_poses()
 
-    def reset_base_pose(self, pose: Pose) -> bool:
+    def reset_base_pose(self, pose: PoseStamped) -> bool:
         return self.world.reset_object_base_pose(self, pose)
 
     def move_base_to_origin_pose(self) -> None:
@@ -965,12 +978,12 @@ class Object(PhysicalBody):
         if attachment.is_inverse:
             child_object.attach(self, attachment.child_link.name, attachment.parent_link.name,
                                 attachment.bidirectional,
-                                parent_to_child_transform=att_transform.invert())
+                                parent_to_child_transform=~att_transform)
         else:
             self.attach(child_object, attachment.parent_link.name, attachment.child_link.name,
                         attachment.bidirectional, parent_to_child_transform=att_transform)
 
-    def get_attachment_transform_with_object(self, attachment: Attachment, child_object: Object) -> Transform:
+    def get_attachment_transform_with_object(self, attachment: Attachment, child_object: Object) -> TransformStamped:
         """
         Return the attachment transform for the given parent and child objects, taking into account the prospection
         world.
@@ -983,7 +996,7 @@ class Object(PhysicalBody):
             raise WorldMismatchErrorBetweenAttachedObjects(self, child_object)
         att_transform = attachment.parent_to_child_transform.copy()
         if self.world.is_prospection_world and not attachment.parent_object.world.is_prospection_world:
-            att_transform.frame = self.tf_prospection_world_prefix + att_transform.frame
+            att_transform.frame_id = self.tf_prospection_world_prefix + att_transform.frame_id
             att_transform.child_frame_id = self.tf_prospection_world_prefix + att_transform.child_frame_id
         return att_transform
 
@@ -1083,7 +1096,7 @@ class Object(PhysicalBody):
                 child.set_pose(attachment.get_child_link_target_pose(), set_attachments=False)
                 child._set_attached_objects_poses(already_moved_objects + [self])
 
-    def set_position(self, position: Union[Pose, Point, List], base=False) -> None:
+    def set_position(self, position: Union[PoseStamped, Point, List], base=False) -> None:
         """
         Set this Object to the given position, if base is true, place the bottom of the Object at the position
         instead of the origin in the center of the Object. The given position can either be a Pose,
@@ -1092,10 +1105,10 @@ class Object(PhysicalBody):
         :param position: Target position as xyz.
         :param base: If the bottom of the Object should be placed or the origin in the center.
         """
-        pose = Pose()
-        if isinstance(position, Pose):
+        pose = PoseStamped()
+        if isinstance(position, PoseStamped):
             target_position = position.position
-            pose.frame = position.frame
+            pose.frame_id = position.frame_id
         elif isinstance(position, Point):
             target_position = position
         elif isinstance(position, (List, np.ndarray, tuple)):
@@ -1110,17 +1123,17 @@ class Object(PhysicalBody):
         pose.orientation = self.get_orientation()
         self.set_pose(pose, base=base)
 
-    def set_orientation(self, orientation: Union[Pose, Quaternion, List, Tuple, np.ndarray]) -> None:
+    def set_orientation(self, orientation: Union[PoseStamped, Quaternion, List, Tuple, np.ndarray]) -> None:
         """
         Set the orientation of the Object to the given orientation. Orientation can either be a Pose, in this case only
         the orientation of this pose is used or a geometry_msgs.msg/Quaternion which is the orientation of a Pose.
 
         :param orientation: Target orientation given as a list of xyzw.
         """
-        pose = Pose()
-        if isinstance(orientation, Pose):
+        pose = PoseStamped()
+        if isinstance(orientation, PoseStamped):
             target_orientation = orientation.orientation
-            pose.frame = orientation.frame
+            pose.frame_id = orientation.frame_id
         elif isinstance(orientation, Quaternion):
             target_orientation = orientation
         elif (isinstance(orientation, list) or isinstance(orientation, np.ndarray) or isinstance(orientation, tuple)) \
@@ -1242,7 +1255,7 @@ class Object(PhysicalBody):
         """
         return {joint_name: np.clip(joint_position, self.joints[joint_name].lower_limit,
                                     self.joints[joint_name].upper_limit)
-                if self.joints[joint_name].has_limits else joint_position
+        if self.joints[joint_name].has_limits else joint_position
                 for joint_name, joint_position in joint_positions.items()}
 
     def get_joint_position(self, joint_name: str) -> float:
@@ -1326,23 +1339,30 @@ class Object(PhysicalBody):
         """
         return self.joints[joint_name].parent_link
 
-    def find_joint_above_link(self, link_name: str) -> str:
+    def find_joint_above_link(self, link_name: str, joint_type: Optional[JointType] = None) -> Optional[str]:
         """
-        Traverse the chain from 'link' to the URDF origin and return the first joint that is not FIXED.
+        Traverses the chain from 'link' to the URDF origin and returns the first joint that is of type 'joint_type'.
+        If no joint type is given, the first joint that is not FIXED is returned.
 
         :param link_name: AbstractLink name above which the joint should be found
-        :return: Name of the first non-fixed joint, None if no joint is found
+        :param joint_type: Joint type that should be searched for
+        :return: Name of the first joint which has the given type
         """
         chain = self.description.get_chain(self.description.get_root(), link_name)
         reversed_chain = reversed(chain)
-        container_joint = None
         for element in reversed_chain:
-            if element in self.joint_name_to_id and self.get_joint_type(element) != JointType.FIXED:
-                container_joint = element
-                break
-        if not container_joint:
-            logwarn(f"No movable parent joint found above link {link_name}")
-        return container_joint
+            if element not in self.joint_name_to_id:
+                continue
+
+            element_joint_type = self.get_joint_type(element)
+            if joint_type is not None and element_joint_type == joint_type:
+                return element
+
+            if joint_type is None and element_joint_type != JointType.FIXED:
+                return element
+
+        logwarn(f"No joint of type {joint_type} found above link {link_name}")
+        return None
 
     def get_multiple_joint_positions(self, joint_names: List[str]) -> Dict[str, float]:
         """
@@ -1466,7 +1486,7 @@ class Object(PhysicalBody):
         else:
             return self.world.get_body_convex_hull(self)
 
-    def get_base_origin(self) -> Pose:
+    def get_base_origin(self) -> PoseStamped:
         """
         Return the origin of the base/bottom of this object.
 
@@ -1475,8 +1495,8 @@ class Object(PhysicalBody):
         aabb = self.get_axis_aligned_bounding_box()
         base_width = np.absolute(aabb.min_x - aabb.max_x)
         base_length = np.absolute(aabb.min_y - aabb.max_y)
-        return Pose([aabb.min_x + base_width / 2, aabb.min_y + base_length / 2, aabb.min_z],
-                    self.get_orientation_as_list())
+        return PoseStamped.from_list([aabb.min_x + base_width / 2, aabb.min_y + base_length / 2, aabb.min_z],
+                           self.get_orientation_as_list())
 
     def get_joint_by_id(self, joint_id: int) -> Joint:
         """
@@ -1520,3 +1540,15 @@ class Object(PhysicalBody):
         """
         return self.world
 
+    def frozen_copy(self) -> FrozenObject:
+        """
+        Creates a copied version of this object which contains the information of this object but can not be interacted
+        with.
+
+        :return FrozenObject: The copied forzen object.
+        """
+        frozen_links = {l_name: FrozenLink(l.name, l.pose, l.geometry) for l_name, l in self.links.items()}
+        frozen_joints = {j_name: FrozenJoint(j.name, j.type, [j.child], j.parent, j.current_state.position) for j_name, j in self.joints.items()}
+
+        return FrozenObject(self.name, self.obj_type, self.path, self.description, self.pose,
+                            frozen_links, frozen_joints)

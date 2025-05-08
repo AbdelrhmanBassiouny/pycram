@@ -41,7 +41,7 @@ state of the BulletWorld.
 from pycram.worlds.bullet_world import BulletWorld
 from pycram.world_concepts.world_object import Object
 from pycram.datastructures.enums import ObjectType, WorldMode
-from pycram.datastructures.pose import Pose
+from pycram.datastructures.pose import PoseStamped
 from pycrap.ontologies import Apartment, Robot, Milk
 
 use_multiverse = False
@@ -49,16 +49,18 @@ viz_marker_publisher = None
 if use_multiverse:
     try:
         from pycram.worlds.multiverse import Multiverse
+
         world = Multiverse()
     except ImportError:
         raise ImportError("Multiverse is not installed, please install it to use it.")
 else:
     from pycram.ros_utils.viz_marker_publisher import VizMarkerPublisher
+
     world = BulletWorld()
     viz_marker_publisher = VizMarkerPublisher()
-    
+
 apartment = Object("apartment", Apartment, "apartment.urdf")
-pr2 = Object("pr2", Robot, "pr2.urdf")
+pr2 = Object("pr2", Robot, "pr2.urdf", pose=PoseStamped.from_list([1, 2, 0]))
 ```
 
 Next up we will create the location designator description, the {meth}`~pycram.designators.location_designator.CostmapLocation` that we will be using needs a
@@ -77,6 +79,8 @@ location_description = CostmapLocation(target)
 
 pose = location_description.resolve()
 
+if viz_marker_publisher is not None:
+    viz_marker_publisher._stop_publishing()
 print(pose)
 ```
 
@@ -177,7 +181,7 @@ robot_desig = BelieveObject(names=["pr2"]).resolve()
 location_description = CostmapLocation(target=target, visible_for=robot_desig)
 
 for pose in location_description:
-    print(pose.pose)
+    print(pose)
 ```
 
 ## Accessing Locations
@@ -197,9 +201,8 @@ handle_name = "cabinet10_drawer1_handle" if use_multiverse else "handle_cab10_t"
 handle_desig = ObjectPart(names=[handle_name], part_of=apartment_desig.resolve())
 robot_desig = BelieveObject(types=[Robot])
 
-access_location = AccessingLocation(handle_desig.resolve(), robot_desig.resolve(),
-                                    prepose_distance=0.03).resolve()
-print(access_location.pose)
+access_location = AccessingLocation(handle_desig.resolve(), robot_desig.resolve()).resolve()
+print(access_location)
 ```
 
 ## Giskard Location
@@ -220,7 +223,7 @@ if "/giskard" in get_node_names():
     robot_desig = BelieveObject(names=["pr2"]).resolve()
     
     loc = GiskardLocation(target=Pose([1, 1, 1]), reachable_for=robot_desig).resolve()
-    print(loc.pose)
+    print(loc)
 ```
 
 If you are finished with this example you can close the world with the following cell:

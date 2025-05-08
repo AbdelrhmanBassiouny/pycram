@@ -9,13 +9,13 @@ from copy import copy
 
 import numpy as np
 from geometry_msgs.msg import Point
-from trimesh.parent import Geometry3D
+from trimesh import Trimesh
 from typing_extensions import List, Optional, Dict, Tuple, Callable, TYPE_CHECKING, Union, Type, deprecated
 
 import pycrap
 from pycrap.ontologies import PhysicalObject, Robot, Floor, Apartment
+from pycrap.ontologies.crax.rules import HierarchicalContainment, CRAXRule
 from pycrap.ontology_wrapper import OntologyWrapper
-
 from ..cache_manager import CacheManager
 from ..config.world_conf import WorldConfig
 from ..datastructures.dataclasses import (Color, AxisAlignedBoundingBox, CollisionCallbacks,
@@ -24,9 +24,9 @@ from ..datastructures.dataclasses import (Color, AxisAlignedBoundingBox, Collisi
                                           CapsuleVisualShape, PlaneVisualShape, MeshVisualShape,
                                           ObjectState, WorldState, ClosestPointsList,
                                           ContactPointsList, VirtualMobileBaseJoints, RotatedBoundingBox, RayResult)
-from ..datastructures.enums import JointType, WorldMode, Arms
-from ..datastructures.pose import Pose, Transform
-from ..datastructures.world_entity import StateEntity, PhysicalBody, WorldEntity
+from ..datastructures.enums import JointType, WorldMode, Arms, AdjacentBodyMethod as ABM
+from ..datastructures.pose import PoseStamped, TransformStamped
+from ..datastructures.world_entity import PhysicalBody, WorldEntity
 from ..failures import ProspectionObjectNotFound, ObjectNotFound
 from ..local_transformer import LocalTransformer
 from ..robot_description import RobotDescription
@@ -94,8 +94,11 @@ class World(WorldEntity, ABC):
         :param prospection_mode: The mode of the prospection world.
         :param id_: The unique id of the world.
         """
-        self.ontology = OntologyWrapper()
         self.is_prospection_world: bool = is_prospection
+        if not is_prospection:
+            self.ontology = OntologyWrapper()
+        else:
+            self.ontology = None
         WorldEntity.__init__(self, id_, self, concept=pycrap.ontologies.World)
 
         self.latest_state_id: Optional[int] = None
@@ -137,6 +140,41 @@ class World(WorldEntity, ABC):
 
         self.on_add_object_callbacks: List[Callable[[Object], None]] = []
 
+        self._set_world_rules()
+
+    def _set_world_rules(self):
+        """
+        Create the rules for the world.
+        """
+        if self.is_prospection_world:
+            return
+        HierarchicalContainment()
+
+    @property
+    def rules(self) -> List[CRAXRule]:
+        """
+        Return the rules of the world.
+        """
+        return list(CRAXRule.all_rules[self.ontology].values())
+
+    @staticmethod
+    def update_containment_for(bodies: List[PhysicalBody],
+                               candidate_selection_method: ABM = ABM.ClosestPoints) \
+            -> List[PhysicalBody]:
+        """
+        Update the containment for the given bodies by checking if they are contained in other bodies.
+
+        :param bodies: The bodies to update the containment for.
+        :param candidate_selection_method: The method to select the candidate bodies for containment update.
+        :return: The updated bodies.
+        """
+        checked_bodies: List[PhysicalBody] = []
+        for body in bodies:
+            body.update_containment(excluded_bodies=checked_bodies,
+                                    candidate_selection_method=candidate_selection_method)
+            checked_bodies.append(body)
+        return checked_bodies
+
     @property
     def parent_entity(self) -> Optional[WorldEntity]:
         """
@@ -151,7 +189,7 @@ class World(WorldEntity, ABC):
         """
         return self.__class__.__name__
 
-    def get_body_convex_hull(self, body: PhysicalBody) -> Geometry3D:
+    def get_body_convex_hull(self, body: PhysicalBody) -> Trimesh:
         """
         :param body: The body object.
         :return: The convex hull of the body as a Geometry3D object.
@@ -298,7 +336,7 @@ class World(WorldEntity, ABC):
     def preprocess_object_file_and_get_its_cache_path(self, path: str, ignore_cached_files: bool,
                                                       description: ObjectDescription, name: str,
                                                       scale_mesh: Optional[float] = None,
-                                                      mesh_transform: Optional[Transform] = None,
+                                                      mesh_transform: Optional[TransformStamped] = None,
                                                       color: Optional[Color] = None) -> str:
         """
         Update the cache directory with the given object.
@@ -323,7 +361,7 @@ class World(WorldEntity, ABC):
         return 1 / self.__class__.conf.simulation_frequency
 
     @abstractmethod
-    def load_object_and_get_id(self, path: Optional[str] = None, pose: Optional[Pose] = None,
+    def load_object_and_get_id(self, path: Optional[str] = None, pose: Optional[PoseStamped] = None,
                                obj_type: Optional[Type[PhysicalObject]] = None) -> int:
         """
         Load a description file (e.g. URDF) at the given pose and returns the id of the loaded object.
@@ -336,7 +374,7 @@ class World(WorldEntity, ABC):
         pass
 
     def load_generic_object_and_get_id(self, description: GenericObjectDescription,
-                                       pose: Optional[Pose] = None) -> int:
+                                       pose: Optional[PoseStamped] = None) -> int:
         """
         Create a visual and collision box in the simulation and returns the id of the loaded object.
 
@@ -364,7 +402,7 @@ class World(WorldEntity, ABC):
         matching_objects = list(filter(lambda obj: obj.name == name, self.objects))
         return matching_objects[0] if len(matching_objects) > 0 else None
 
-    def get_object_by_type(self, obj_type: Type[PhysicalObject]) -> List[Object]:
+    def get_object_by_type(self, obj_type: PhysicalObject) -> List[Object]:
         """
         Return a list of all Objects which have the type 'obj_type'.
 
@@ -466,7 +504,7 @@ class World(WorldEntity, ABC):
         self.update_simulator_state_id_in_original_state()
 
     def add_fixed_constraint(self, parent_link: Link, child_link: Link,
-                             child_to_parent_transform: Transform) -> int:
+                             child_to_parent_transform: TransformStamped) -> int:
         """
         Create a fixed joint constraint between the given parent and child links,
         the joint frame will be at the origin of the child link frame, and would have the same orientation
@@ -483,7 +521,7 @@ class World(WorldEntity, ABC):
                                 _type=JointType.FIXED,
                                 axis_in_child_frame=Point(x=0, y=0, z=0),
                                 constraint_to_parent=child_to_parent_transform,
-                                child_to_constraint=Transform(frame=child_link.tf_frame)
+                                child_to_constraint=TransformStamped.from_list(frame=child_link.tf_frame)
                                 )
         constraint_id = self.add_constraint(constraint)
         return constraint_id
@@ -535,7 +573,7 @@ class World(WorldEntity, ABC):
         pass
 
     @abstractmethod
-    def get_link_pose(self, link: Link) -> Pose:
+    def get_link_pose(self, link: Link) -> PoseStamped:
         """
         Get the pose of a link of an articulated object with respect to the world frame.
 
@@ -545,7 +583,7 @@ class World(WorldEntity, ABC):
         pass
 
     @abstractmethod
-    def get_multiple_link_poses(self, links: List[Link]) -> Dict[str, Pose]:
+    def get_multiple_link_poses(self, links: List[Link]) -> Dict[str, PoseStamped]:
         """
         Get the poses of multiple links of an articulated object with respect to the world frame.
 
@@ -631,7 +669,7 @@ class World(WorldEntity, ABC):
                 time.sleep(max(0, time_diff))
 
     @abstractmethod
-    def get_object_pose(self, obj: Object) -> Pose:
+    def get_object_pose(self, obj: Object) -> PoseStamped:
         """
         Get the pose of an object in the world frame from the current object pose in the simulator.
 
@@ -640,7 +678,7 @@ class World(WorldEntity, ABC):
         pass
 
     @abstractmethod
-    def get_multiple_object_poses(self, objects: List[Object]) -> Dict[str, Pose]:
+    def get_multiple_object_poses(self, objects: List[Object]) -> Dict[str, PoseStamped]:
         """
         Get the poses of multiple objects in the world frame from the current object poses in the simulator.
 
@@ -849,7 +887,7 @@ class World(WorldEntity, ABC):
 
     @validate_object_pose
     @abstractmethod
-    def reset_object_base_pose(self, obj: Object, pose: Pose) -> bool:
+    def reset_object_base_pose(self, obj: Object, pose: PoseStamped) -> bool:
         """
         Reset the world position and orientation of the base of the object instantaneously,
         not through physics simulation. (x,y,z) position vector and (x,y,z,w) quaternion orientation.
@@ -866,7 +904,7 @@ class World(WorldEntity, ABC):
 
     @validate_multiple_object_poses
     @abstractmethod
-    def reset_multiple_objects_base_poses(self, objects: Dict[Object, Pose]) -> bool:
+    def reset_multiple_objects_base_poses(self, objects: Dict[Object, PoseStamped]) -> bool:
         """
         Reset the world position and orientation of the base of multiple objects instantaneously,
         not through physics simulation. (x,y,z) position vector and (x,y,z,w) quaternion orientation.
@@ -1008,13 +1046,14 @@ class World(WorldEntity, ABC):
 
         :param remove_saved_states: Whether to remove the saved states.
         """
-        self.exit_prospection_world_if_exists()
         self.reset_world(remove_saved_states)
         self.remove_all_objects()
+        self.exit_prospection_world_if_exists()
         self.disconnect_from_physics_server()
         self.reset_robot()
         self.join_threads()
-        self.ontology.destroy_individuals()
+        if self.ontology:
+            self.ontology.destroy_individuals()
         if World.current_world == self:
             World.current_world = None
 
@@ -1176,8 +1215,8 @@ class World(WorldEntity, ABC):
         pass
 
     def get_images_for_target(self,
-                              target_pose: Pose,
-                              cam_pose: Pose,
+                              target_pose: PoseStamped,
+                              cam_pose: PoseStamped,
                               size: Optional[int] = 256) -> List[np.ndarray]:
         """
         Calculate the view and projection Matrix and returns 3 images:
@@ -1296,6 +1335,13 @@ class World(WorldEntity, ABC):
             self.remove_saved_states()
             self.original_state_id = self.save_state(use_same_id=True)
 
+    def reset_concepts(self):
+        """
+        Reset the concepts of the World.
+        """
+        super().reset_concepts()
+        [obj.reset_concepts() for obj in self.objects]
+
     def remove_saved_states(self) -> None:
         """
         Remove all saved states of the World.
@@ -1325,7 +1371,7 @@ class World(WorldEntity, ABC):
         for obj in list(self.current_world.objects):
             obj.update_link_transforms(curr_time)
 
-    def ray_test(self, from_position: List[float], to_position: List[float], calculate_distance: bool = False)\
+    def ray_test(self, from_position: List[float], to_position: List[float], calculate_distance: bool = False) \
             -> RayResult:
         """
         A wrapper around the :py:meth:`~pycram.world.World._ray_test` method that also calculates the distance
@@ -1398,7 +1444,7 @@ class World(WorldEntity, ABC):
         """
         raise NotImplementedError
 
-    def create_multi_body_from_visual_shapes(self, visual_shape_ids: List[int], pose: Pose) -> int:
+    def create_multi_body_from_visual_shapes(self, visual_shape_ids: List[int], pose: PoseStamped) -> int:
         """
         Creates a multi body from visual shapes in the physics simulator and returns the unique id of the created
         multi body.
@@ -1409,12 +1455,12 @@ class World(WorldEntity, ABC):
         """
         # Dummy parameter since these are needed to spawn visual shapes as a multibody.
         num_of_shapes = len(visual_shape_ids)
-        link_poses = [Pose() for _ in range(num_of_shapes)]
+        link_poses = [PoseStamped() for _ in range(num_of_shapes)]
         link_masses = [1.0 for _ in range(num_of_shapes)]
         link_parent = [0 for _ in range(num_of_shapes)]
         link_joints = [JointType.FIXED.value for _ in range(num_of_shapes)]
         link_collision = [-1 for _ in range(num_of_shapes)]
-        link_joint_axis = [Point(x=1, y=0,z=0) for _ in range(num_of_shapes)]
+        link_joint_axis = [Point(x=1, y=0, z=0) for _ in range(num_of_shapes)]
 
         multi_body = MultiBody(base_visual_shape_index=-1, base_pose=pose,
                                link_visual_shape_indices=visual_shape_ids, link_poses=link_poses,
@@ -1636,7 +1682,7 @@ class World(WorldEntity, ABC):
         if self.world_sync.sync_lock.locked():
             self.world_sync.sync_lock.release()
 
-    def add_vis_axis(self, pose: Pose) -> int:
+    def add_vis_axis(self, pose: PoseStamped) -> int:
         """
         Add a visual axis to the world.
 
@@ -1645,7 +1691,7 @@ class World(WorldEntity, ABC):
         """
         return self._simulator_object_creator(self._add_vis_axis, pose)
 
-    def _add_vis_axis(self, pose: Pose) -> None:
+    def _add_vis_axis(self, pose: PoseStamped) -> None:
         """
         See :py:meth:`~pycram.world.World.add_vis_axis`
         """
@@ -1709,9 +1755,6 @@ class World(WorldEntity, ABC):
         The saved original state of the world.
         """
         return self.saved_states[self.original_state_id]
-
-    def __del__(self):
-        self.exit()
 
     def __eq__(self, other: World):
         if not isinstance(other, self.__class__):
@@ -1893,6 +1936,6 @@ class WorldSync(threading.Thread):
         if not eql:
             return False
         for obj, prospection_obj in self.object_to_prospection_object_map.items():
-            eql = eql and obj.get_pose().dist(prospection_obj.get_pose()) < 0.001
+            eql = eql and obj.get_pose().position.euclidean_distance(prospection_obj.get_pose().position) < 0.001
         self.equal_states = eql
         return eql

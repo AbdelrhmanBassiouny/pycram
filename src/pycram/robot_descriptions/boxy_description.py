@@ -3,11 +3,12 @@ from ..robot_description import RobotDescription, CameraDescription, KinematicCh
     EndEffectorDescription, RobotDescriptionManager
 from ..datastructures.enums import Arms, Grasp, GripperState, TorsoState, GripperType, StaticJointState
 from ..units import meter
+from ..datastructures.dataclasses import VirtualMobileBaseJoints
 
 filename = get_ros_package_path('pycram') + '/resources/robots/' + "boxy" + '.urdf'
 
 boxy_description = RobotDescription("boxy", "base_link", "triangle_base_link", "triangle_base_joint",
-                                    filename)
+                                    filename, virtual_mobile_base_joints=VirtualMobileBaseJoints())
 
 ################################## Right Arm ##################################
 right_arm = KinematicChainDescription("right_arm", "calib_right_arm_base_link", "right_arm_7_link",
@@ -80,10 +81,8 @@ boxy_description.add_camera_description(camera)
 boxy_description.add_kinematic_chain("neck", "neck_base_link", "neck_wrist_3_link")
 
 ################################# Grasps ##################################
-boxy_description.add_grasp_orientations({Grasp.LEFT: [1, 0, 0, 1],
-                                         Grasp.TOP: [1, 1, 0, 0],
-                                         Grasp.RIGHT: [0, 1, 1, 0],
-                                         Grasp.FRONT: [1, 0, 1, 0]})
+left_gripper.update_all_grasp_orientations([1, 0, 1, 0])
+right_gripper.update_all_grasp_orientations([1, 0, 1, 0])
 
 # Add to RobotDescriptionManager
 rdm = RobotDescriptionManager()

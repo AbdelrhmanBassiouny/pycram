@@ -28,10 +28,11 @@ from pycram.designators.action_designator import *
 from pycram.designators.location_designator import *
 from pycram.process_module import simulated_robot
 from pycram.designators.object_designator import *
-from pycram.datastructures.pose import Pose
+from pycram.datastructures.pose import PoseStamped
 from pycram.datastructures.enums import ObjectType, WorldMode, TorsoState
 import anytree
 import pycram.failures
+from pycram.datastructures.pose import GraspDescription
 ```
 
 Next we will create a bullet world with a PR2 in a kitchen containing milk and cereal.
@@ -55,26 +56,27 @@ Finally, we create a plan where the robot parks his arms, walks to the kitchen c
 @pycram.tasktree.with_tree
 def plan():
     with simulated_robot:
-        ParkArmsActionPerformable(Arms.BOTH).perform()
-        MoveTorsoAction([TorsoState.MID]).resolve().perform()
+        ParkArmsAction(Arms.BOTH).perform()
+        MoveTorsoActionDescription([TorsoState.MID]).resolve().perform()
         pickup_pose = CostmapLocation(target=cereal_desig.resolve(), reachable_for=robot_desig).resolve()
-        pickup_arm = pickup_pose.reachable_arms[0]
-        NavigateAction(target_locations=[pickup_pose.pose]).resolve().perform()
-        PickUpAction(object_designator_description=cereal_desig, arms=[pickup_arm], grasps=[Grasp.FRONT]).resolve().perform()
-        ParkArmsAction([Arms.BOTH]).resolve().perform()
+        pickup_arm = pickup_pose.arm
+        NavigateActionDescription(target_location=pickup_pose).resolve().perform()
+        grasp = pickup_pose.grasp_description
+        PickUpActionDescription(object_designator=cereal_desig, arm=[pickup_arm], grasp_description=grasp).resolve().perform()
+        ParkArmsActionDescription([Arms.BOTH]).resolve().perform()
 
         place_island = SemanticCostmapLocation("kitchen_island_surface", kitchen_desig.resolve(),
                                            cereal_desig.resolve()).resolve()
 
-        place_stand = CostmapLocation(place_island.pose, reachable_for=robot_desig, reachable_arm=pickup_arm).resolve()
+        place_stand = CostmapLocation(place_island, reachable_for=robot_desig, reachable_arm=[pickup_arm],  object_in_hand=cereal_desig.resolve())
 
-        NavigateAction(target_locations=[place_stand.pose]).resolve().perform()
+        NavigateActionDescription(target_location=place_stand).resolve().perform()
 
-        PlaceAction(cereal_desig, target_locations=[place_island.pose], arms=[pickup_arm]).resolve().perform()
+        PlaceActionDescription(cereal_desig, target_location=place_island, arm=[pickup_arm]).resolve().perform()
 
-        ParkArmsAction([Arms.BOTH]).resolve().perform()
+        ParkArmsActionDescription([Arms.BOTH]).resolve().perform()
 
-        ParkArmsActionPerformable(Arms.BOTH).perform()
+        ParkArmsAction(Arms.BOTH).perform()
 
 plan()
 

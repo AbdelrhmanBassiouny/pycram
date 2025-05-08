@@ -48,7 +48,6 @@ If you already have some data in your local database you can skip the next block
 some example data
 
 ```python
-from pycram.datastructures.enums import Arms, ObjectType
 from pycram.designators.action_designator import *
 from pycram.designators.location_designator import *
 from pycram.process_module import simulated_robot
@@ -64,8 +63,8 @@ class ExamplePlans:
         self.world = BulletWorld("DIRECT")
         self.pr2 = Object("pr2", Robot, "pr2.urdf")
         self.kitchen = Object("kitchen", Kitchen, "kitchen.urdf")
-        self.milk = Object("milk", Milk, "milk.stl", pose=Pose([1.3, 1, 0.9]))
-        self.cereal = Object("cereal", Cereal, "breakfast_cereal.stl", pose=Pose([1.3, 0.7, 0.95]))
+        self.milk = Object("milk", Milk, "milk.stl", pose=PoseStamped.from_list([1.3, 1, 0.9]))
+        self.cereal = Object("cereal", Cereal, "breakfast_cereal.stl", pose=PoseStamped.from_list([1.3, 0.7, 0.95]))
         self.milk_desig = ObjectDesignatorDescription(names=["milk"])
         self.cereal_desig = ObjectDesignatorDescription(names=["cereal"])
         self.robot_desig = ObjectDesignatorDescription(names=["pr2"]).resolve()
@@ -77,7 +76,7 @@ class ExamplePlans:
             ParkArmsAction([Arms.BOTH]).resolve().perform()
             MoveTorsoAction([0.3]).resolve().perform()
             pickup_pose = CostmapLocation(target=self.cereal_desig.resolve(), reachable_for=self.robot_desig).resolve()
-            pickup_arm = pickup_pose.reachable_arms[0]
+            pickup_arm = pickup_pose.reachable_arm
             NavigateAction(target_locations=[pickup_pose.pose]).resolve().perform()
             PickUpAction(object_designator_description=self.cereal_desig, arms=[pickup_arm],
                          grasps=["front"]).resolve().perform()

@@ -6,16 +6,18 @@ ProcessModule -- implementation of process modules.
 # used for delayed evaluation of typing until python 3.11 becomes mainstream
 from __future__ import annotations
 import inspect
+from dataclasses import field
+from datetime import timedelta
 from threading import Lock, get_ident
 import time
 from abc import ABC
-from typing_extensions import Callable, Type, Any, Union
+from typing_extensions import Callable, Any, Union, Optional, List
 
-from .language import Language
 from .robot_description import RobotDescription
+from .datastructures.world import World
 from typing_extensions import TYPE_CHECKING
 from .datastructures.enums import ExecutionType
-from .ros import  logerr, logwarn_once
+from .ros import logerr, logwarn_once
 
 if TYPE_CHECKING:
     from .designators.motion_designator import BaseMotion
@@ -26,14 +28,9 @@ class ProcessModule:
     Implementation of process modules. Process modules are the part that communicate with the outer world to execute
      designators.
     """
-    execution_delay = False
+    execution_delay: Optional[timedelta] = World.conf.execution_delay
     """
-    Adds a delay of 0.5 seconds after executing a process module, to make the execution in simulation more realistic
-    """
-    block_list = []
-    """
-    List of thread ids for which no Process Modules should be executed. This is used as an interrupt mechanism for 
-    Designators
+    Adds a delay after executing a process module, to make the execution in simulation more realistic
     """
 
     def __init__(self, lock):
@@ -56,12 +53,10 @@ class ProcessModule:
         :param designator: The designator_description to execute.
         :return: Return of the Process Module if there is any
         """
-        if get_ident() in Language.block_list:
-            return None
         with self._lock:
             ret = self._execute(designator)
             if ProcessModule.execution_delay:
-                time.sleep(0.5)
+                time.sleep(self.execution_delay.total_seconds())
 
         return ret
 
@@ -80,8 +75,8 @@ class RealRobot:
     """
 
     def __init__(self):
-        self.pre: str = ""
-        self.pre_delay: bool = False
+        self.pre: ExecutionType = ExecutionType.REAL
+        self.pre_delay: timedelta = World.conf.execution_delay
 
     def __enter__(self):
         """
@@ -91,7 +86,7 @@ class RealRobot:
         self.pre = ProcessModuleManager.execution_type
         ProcessModuleManager.execution_type = ExecutionType.REAL
         self.pre_delay = ProcessModule.execution_delay
-        ProcessModule.execution_delay = False
+        ProcessModule.execution_delay = timedelta(seconds=0)
 
     def __exit__(self, _type, value, traceback):
         """
@@ -119,7 +114,7 @@ class SimulatedRobot:
     """
 
     def __init__(self):
-        self.pre: str = ""
+        self.pre: ExecutionType = ExecutionType.SIMULATED
 
     def __enter__(self):
         """
@@ -154,7 +149,7 @@ class SemiRealRobot:
     """
 
     def __init__(self):
-        self.pre: str = ""
+        self.pre: ExecutionType = ExecutionType.SEMI_REAL
 
     def __enter__(self):
         """
@@ -238,15 +233,15 @@ class ProcessModuleManager(ABC):
     Base class for managing process modules, any new process modules have to implement this class to register the
     Process Modules
     """
-    execution_type = None
+    execution_type: ExecutionType = None
     """
     Whether the robot for which the process module is intended for is real or a simulated one
     """
-    available_pms = []
+    available_pms: List[ProcessModuleManager] = []
     """
     List of all available Process Module Managers
     """
-    _instance = None
+    _instance: ProcessModuleManager = None
     """
     Singelton instance of this Process Module Manager
     """
@@ -255,6 +250,7 @@ class ProcessModuleManager(ABC):
         """
         Creates a new instance if :py:attr:`~ProcessModuleManager._instance` is None, otherwise the instance
         in :py:attr:`~ProcessModuleManager._instance` is returned.
+
         :return: Singelton instance of this Process Module Manager
         """
         if not cls._instance:
@@ -263,15 +259,16 @@ class ProcessModuleManager(ABC):
         else:
             return cls._instance
 
-    def __init__(self, robot_name):
+    def __init__(self, robot_name: str):
         """
         Registers the Process modules for this robot. The name of the robot has to match the name given in the robot
         description.
+
         :param robot_name: Name of the robot for which these Process Modules are intended
         """
 
         self.robot_name = robot_name
-        ProcessModuleManager.available_pms.append(self)
+        self.available_pms.append(self)
         self._navigate_lock = Lock()
         self._pick_up_lock = Lock()
         self._place_lock = Lock()
@@ -284,6 +281,8 @@ class ProcessModuleManager(ABC):
         self._move_gripper_lock = Lock()
         self._open_lock = Lock()
         self._close_lock = Lock()
+        self._move_tcp_waypoints_lock = Lock()
+        self.available_pms = []
 
     @staticmethod
     def get_manager() -> Union[ProcessModuleManager, None]:
@@ -297,7 +296,7 @@ class ProcessModuleManager(ABC):
         if not ProcessModuleManager.execution_type:
             logerr(
                 f"No execution_type is set, did you use the with_simulated_robot or with_real_robot decorator?")
-            return
+            return None
 
         robot_description = RobotDescription.current_robot_description
         chains = robot_description.get_manipulator_chains()
@@ -436,6 +435,16 @@ class ProcessModuleManager(ABC):
          the :py:attr:`~ProcessModuleManager.execution_type`
 
         :return: The Process Module for closing drawers
+        """
+        raise NotImplementedError(
+            f"There are no Process Modules for '{inspect.currentframe().f_code.co_name}' for robot '{self.robot_name}'")
+
+    def move_tcp_waypoints(self) -> ProcessModule:
+        """
+        Get the Process Module for moving the Tool Center Point along a list of waypoints with respect to
+         the :py:attr:`~ProcessModuleManager.execution_type`
+
+        :return: The Process Module for moving the TCP along a list of waypoints
         """
         raise NotImplementedError(
             f"There are no Process Modules for '{inspect.currentframe().f_code.co_name}' for robot '{self.robot_name}'")

@@ -31,14 +31,14 @@ A BulletWorld can be created by simply creating an object of the BulletWorld cla
 from pycram.worlds.bullet_world import BulletWorld
 from pycram.world_concepts.world_object import Object
 from pycram.datastructures.enums import ObjectType, WorldMode
-from pycram.datastructures.pose import Pose
+from pycram.datastructures.pose import PoseStamped
 from pycrap.ontologies import Milk, Cereal, Robot, Kitchen
 
 world = BulletWorld(mode=WorldMode.DIRECT)
 
 milk = Object("milk", Milk, "milk.stl")
 pr2 = Object("pr2", Robot, "pr2.urdf")
-cereal = Object("cereal", Cereal, "breakfast_cereal.stl", pose=Pose([1.4, 1, 0.95]))
+cereal = Object("cereal", Cereal, "breakfast_cereal.stl", pose=PoseStamped.from_list([1.4, 1, 0.95]))
 ```
 
 The BulletWorld allows to render images from arbitrary positions. In the following example we render images with the
@@ -233,7 +233,7 @@ function contains a "with" scope which executes something on the simulated robot
 from pycram.designators.motion_designator import *
 from pycram.process_module import simulated_robot, with_simulated_robot
 
-description = MoveMotion(target=Pose([1, 0, 0], [0, 0, 0, 1]))
+description = MoveMotion(target=PoseStamped.from_list([1, 0, 0], [0, 0, 0, 1]))
 
 with simulated_robot:
     description.perform()
@@ -316,7 +316,7 @@ from pycram.designators.action_designator import *
 from pycram.datastructures.enums import Arms
 
 with simulated_robot:
-    ParkArmsAction([Arms.BOTH]).resolve().perform()
+    ParkArmsActionDescription([Arms.BOTH]).resolve().perform()
 
 ```
 
@@ -326,35 +326,37 @@ To get familiar with the PyCRAM Framework we will write a simple pick and place 
 a cereal box from the kitchen counter and place it on the kitchen island. This is a simple pick and place plan.
 
 ```python
-from pycram.datastructures.enums import Grasp, TorsoState
+from pycram.datastructures.enums import Grasp, TorsoState, Arms
+from pycram.datastructures.pose import GraspDescription
 
 cereal_desig = ObjectDesignatorDescription(names=["cereal"])
 kitchen_desig = ObjectDesignatorDescription(names=["kitchen"])
-robot_desig = ObjectDesignatorDescription(names=["pr2"]).resolve()
+robot_desig = ObjectDesignatorDescription(names=["pr2"])
 with simulated_robot:
-    ParkArmsAction([Arms.BOTH]).resolve().perform()
+    ParkArmsActionDescription(Arms.BOTH).resolve().perform()
 
-    MoveTorsoAction([TorsoState.HIGH]).resolve().perform()
+    MoveTorsoActionDescription([TorsoState.HIGH]).resolve().perform()
 
-    pickup_pose = CostmapLocation(target=cereal_desig.resolve(), reachable_for=robot_desig).resolve()
-    pickup_arm = pickup_pose.reachable_arms[0]
+    pickup_arm = Arms.RIGHT
+    pickup_pose = CostmapLocation(target=cereal_desig, reachable_for=robot_desig, reachable_arm=pickup_arm)
+    
+    NavigateActionDescription(target_location=pickup_pose).resolve().perform()
+    
+    grasp_description = GraspDescription(Grasp.FRONT, None, False)
+    PickUpActionDescription(object_designator=cereal_desig, arm=[pickup_arm], grasp_description=grasp_description).resolve().perform()
 
-    NavigateAction(target_locations=[pickup_pose.pose]).resolve().perform()
-
-    PickUpAction(object_designator_description=cereal_desig, arms=[pickup_arm], grasps=[Grasp.FRONT]).resolve().perform()
-
-    ParkArmsAction([Arms.BOTH]).resolve().perform()
+    ParkArmsActionDescription([Arms.BOTH]).resolve().perform()
 
     place_island = SemanticCostmapLocation("kitchen_island_surface", kitchen_desig.resolve(),
-                                           cereal_desig.resolve()).resolve()
+                                           cereal_desig.resolve())
 
-    place_stand = CostmapLocation(place_island.pose, reachable_for=robot_desig, reachable_arm=pickup_arm).resolve()
+    place_stand = CostmapLocation(place_island, reachable_for=robot_desig, reachable_arm=[pickup_arm], object_in_hand=cereal_desig.resolve())
 
-    NavigateAction(target_locations=[place_stand.pose]).resolve().perform()
+    NavigateActionDescription(target_location=place_stand).resolve().perform()
 
-    PlaceAction(cereal_desig, target_locations=[place_island.pose], arms=[pickup_arm]).resolve().perform()
+    PlaceActionDescription(cereal_desig, target_location=place_island, arm=[pickup_arm]).resolve().perform()
 
-    ParkArmsAction([Arms.BOTH]).resolve().perform()
+    ParkArmsActionDescription([Arms.BOTH]).resolve().perform()
 
 
 
@@ -408,8 +410,8 @@ print(*navigations, sep="\n")
 navigations = (session.scalars(
     select(pycram.orm.action_designator.NavigateAction, pycram.orm.base.Position, pycram.orm.base.Quaternion).
     join(pycram.orm.action_designator.NavigateAction.pose).
-    join(pycram.orm.base.Pose.position).
-    join(pycram.orm.base.Pose.orientation)).all())
+    join(pycram.orm.base.PoseStamped.position).
+    join(pycram.orm.base.PoseStamped.orientation)).all())
 print(*navigations, sep="\n")
 ```
 

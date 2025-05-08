@@ -11,18 +11,19 @@ ONLY EXECUTE THIS IF YOU ARE SURE THAT YOU WANT TO DELETE THE DATABASE AND CREAT
 
 import os
 import random
+from datetime import timedelta
 
 import numpy as np
 import sqlalchemy.orm
 
-from pycrap import Robot, Milk
+from pycrap.ontologies import Robot, Milk
 
 import pycram.orm.base
 from pycram.designators.object_designator import ObjectDesignatorDescription
 from pycram.worlds.bullet_world import BulletWorld
 from pycram.world_concepts.world_object import Object
 from pycram.datastructures.enums import WorldMode
-from pycram.datastructures.pose import Pose
+from pycram.datastructures.pose import PoseStamped
 from pycram.ros_utils.viz_marker_publisher import VizMarkerPublisher
 from pycram.process_module import ProcessModule, simulated_robot
 from pycram.designators.specialized_designators.probabilistic.probabilistic_action import MoveAndPickUp, Arms, Grasp
@@ -31,7 +32,6 @@ import pycram.orm.base
 
 
 def main():
-    ProcessModule.execution_delay = False
     np.random.seed(69)
     random.seed(69)
 
@@ -45,7 +45,7 @@ def main():
     world = BulletWorld(WorldMode.DIRECT)
 
     robot = Object("pr2", Robot, "pr2.urdf")
-    milk = Object("milk", Milk, "milk.stl", pose=Pose([1.3, 1, 0.9]))
+    milk = Object("milk", Milk, "milk.stl", pose=PoseStamped.from_list([1.3, 1, 0.9]))
     viz_marker_publisher = VizMarkerPublisher()
     milk_description = ObjectDesignatorDescription(types=[Milk]).ground()
 

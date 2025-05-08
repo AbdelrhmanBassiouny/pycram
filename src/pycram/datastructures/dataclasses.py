@@ -1,30 +1,37 @@
 from __future__ import annotations
 
 import itertools
+import math
 from abc import ABC, abstractmethod
 from copy import deepcopy, copy
 from dataclasses import dataclass, fields, field
+from enum import Enum
 
 import numpy as np
 import plotly.graph_objects as go
 import trimesh
 from matplotlib import pyplot as plt
+from std_msgs.msg import ColorRGBA
+
 from random_events.interval import closed, SimpleInterval, Bound
 from random_events.product_algebra import SimpleEvent, Event
 from random_events.variable import Continuous
 from typing_extensions import List, Optional, Tuple, Callable, Dict, Any, Union, TYPE_CHECKING, Sequence, Self, \
-    deprecated
+    deprecated, Type
 
-from .enums import JointType, Shape, VirtualMobileBaseJointName
-from .pose import Pose, Point, Transform
-from ..ros import logwarn
+from pycrap.ontologies import PhysicalObject
+from .enums import JointType, Shape, VirtualMobileBaseJointName, Grasp, AxisIdentifier
+from .pose import PoseStamped, Point, TransformStamped
+from ..ros import logwarn, logwarn_once
+from ..utils import classproperty
 from ..validation.error_checkers import calculate_joint_position_error, is_error_acceptable
 
 if TYPE_CHECKING:
-    from ..description import Link
+    from ..description import Link, ObjectDescription
     from ..world_concepts.world_object import Object
     from ..world_concepts.constraints import Attachment
     from .world_entity import PhysicalBody
+    from .world import World
 
 
 @dataclass
@@ -183,6 +190,34 @@ class Color:
         return [self.R, self.G, self.B]
 
 
+class Colors(Color, Enum):
+    """
+    Enum for easy access to some common colors.
+    """
+    PINK = (1, 0, 1, 1)
+    BLACK = (0, 0, 0, 1)
+    WHITE = (1, 1, 1, 1)
+    RED = (1, 0, 0, 1)
+    GREEN = (0, 1, 0, 1)
+    BLUE = (0, 0, 1, 1)
+    YELLOW = (1, 1, 0, 1)
+    CYAN = (0, 1, 1, 1)
+    MAGENTA = (1, 0, 1, 1)
+    GREY = (0.5, 0.5, 0.5, 1)
+
+    @classmethod
+    def from_string(cls, color: str) -> Color:
+        """
+        Set the rgba_color from a string. If the string is not a valid color, it will return the color WHITE.
+
+        :param color: The string of the color
+        """
+        try:
+            return cls[color.upper()]
+        except KeyError:
+            return cls.WHITE
+
+
 @dataclass
 class BoundingBox:
     """
@@ -190,6 +225,10 @@ class BoundingBox:
 
     An axis aligned bounding box is the cartesian product of the three closed intervals
     [min_x, max_x] x [min_y, max_y] x [min_z, max_z].
+
+    Depth is the distance between the min_x and max_x, and should always be the long side (excluding height).
+    Width is the distance between the min_y and max_y, and should always be the short side (excluding height).
+    Height is the distance between the min_z and max_z, "up" is according to how the object would stand on a table.
 
     Set-Algebraic operations are possible by converting the bounding box to a random event.
     """
@@ -321,6 +360,15 @@ class BoundingBox:
         """
         return self.simple_event.contains((x, y, z))
 
+    def contains_box(self, other: BoundingBox):
+        """
+        Check if the bounding box contains another bounding box.
+
+        :param other: The other bounding box.
+        :return: True if the bounding box contains the other bounding box, False otherwise.
+        """
+        return (other.simple_event.as_composite_set() - self.simple_event.as_composite_set()).is_empty()
+
     @classmethod
     def merge_multiple_bounding_boxes_into_mesh(cls, bounding_boxes: List[BoundingBox],
                                                 save_mesh_to: Optional[str] = None,
@@ -363,15 +411,8 @@ class BoundingBox:
         return mesh
 
     @property
-    def transform_as_array(self) -> np.ndarray:
-        """
-        :return: The transformation of the bounding box as a numpy array.
-        """
-        return self.transform.get_homogeneous_matrix()
-
-    @property
     @abstractmethod
-    def transform(self) -> Transform:
+    def transform(self) -> TransformStamped:
         """
         Get the transformation of the bounding box.
         """
@@ -381,7 +422,7 @@ class BoundingBox:
         """
         :return: The size of the bounding box in each dimension.
         """
-        return np.array([self.width, self.depth, self.height])
+        return np.array([self.depth, self.width, self.height])
 
     @staticmethod
     def get_mesh_from_boxes(boxes: List[BoundingBox]) -> trimesh.Trimesh:
@@ -402,7 +443,7 @@ class BoundingBox:
         """
         :return: The mesh of the bounding box.
         """
-        return trimesh.primitives.Box(self.extents(), self.transform_as_array)
+        return trimesh.primitives.Box(self.extents(), self.transform.transform.to_matrix())
 
     @staticmethod
     def get_mesh_from_event(event: Event) -> trimesh.Trimesh:
@@ -547,7 +588,7 @@ class BoundingBox:
                      amount, amount, amount)
 
     @property
-    def width(self) -> float:
+    def depth(self) -> float:
         return self.max_x - self.min_x
 
     @property
@@ -555,8 +596,21 @@ class BoundingBox:
         return self.max_z - self.min_z
 
     @property
-    def depth(self) -> float:
+    def width(self) -> float:
         return self.max_y - self.min_y
+
+    @property
+    def dimensions(self) -> List[float]:
+        """
+        According to the IAI conventions, found at https://ai.uni-bremen.de/wiki/3dmodeling/items
+        1. z is height, according to how the object would stand on a table
+        2. x is depth, representing the long side of the object
+        3. y is width, representing the remaining dimension
+        """
+        if self.width > self.depth:
+            logwarn_once("The width of the bounding box is greater than the depth. This means the object's"
+                         "axis alignment is potentially going against IAI conventions.")
+        return [self.depth, self.width, self.height]
 
     @staticmethod
     def plot_3d_points(list_of_points: List[np.ndarray]):
@@ -581,10 +635,10 @@ class BoundingBox:
 class AxisAlignedBoundingBox(BoundingBox):
 
     @property
-    def transform(self) -> Transform:
-        return Transform(self.origin)
+    def transform(self) -> TransformStamped:
+        return TransformStamped.from_list(self.origin)
 
-    def get_rotated_box(self, transform: Transform) -> RotatedBoundingBox:
+    def get_rotated_box(self, transform: TransformStamped) -> RotatedBoundingBox:
         """
         Apply a transformation to the axis-aligned bounding box and return the transformed axis-aligned bounding box.
 
@@ -637,23 +691,23 @@ class RotatedBoundingBox(BoundingBox):
     """
 
     def __init__(self, min_x: float, min_y: float, min_z: float, max_x: float, max_y: float, max_z: float,
-                 transform: Optional[Transform] = None, points: Optional[List[Point]] = None):
+                 transform: Optional[TransformStamped] = None, points: Optional[List[Point]] = None):
         """
         Set the rotated bounding box from a minimum and maximum point.
         :param transform: The transformation
         :param points: The points of the rotated bounding box.
         """
-        self._transform: Optional[Transform] = transform
+        self._transform: Optional[TransformStamped] = transform
         super().__init__(min_x, min_y, min_z, max_x, max_y, max_z)
         self._points: Optional[List[Point]] = points
 
     @property
-    def transform(self) -> Transform:
+    def transform(self) -> TransformStamped:
         return self._transform
 
     @classmethod
     def from_min_max(cls, min_point: Sequence[float], max_point: Sequence[float],
-                     transform: Optional[Transform] = None):
+                     transform: Optional[TransformStamped] = None):
         """
         Set the rotated bounding box from a minimum, maximum point, and a transformation.
 
@@ -690,11 +744,11 @@ class MultiBody:
     Dataclass for storing the information of a multibody which consists of a base and multiple links with joints.
     """
     base_visual_shape_index: int
-    base_pose: Pose
+    base_pose: PoseStamped
     link_visual_shape_indices: List[int]
-    link_poses: List[Pose]
+    link_poses: List[PoseStamped]
     link_masses: List[float]
-    link_inertial_frame_poses: List[Pose]
+    link_inertial_frame_poses: List[PoseStamped]
     link_parent_indices: List[int]
     link_joint_types: List[JointType]
     link_joint_axis: List[Point]
@@ -870,7 +924,7 @@ class PhysicalBodyState(State):
     """
     Dataclass for storing the state of a physical body.
     """
-    pose: Pose
+    pose: PoseStamped
     is_translating: bool
     is_rotating: bool
     velocity: List[float]
@@ -996,7 +1050,7 @@ class ObjectState(State):
                 and self.joint_states == other.joint_states)
 
     @property
-    def pose(self) -> Pose:
+    def pose(self) -> PoseStamped:
         return self.body_state.pose
 
     def all_attachments_exist(self, other: ObjectState) -> bool:
@@ -1100,6 +1154,10 @@ class ContactPoint:
     def normal(self) -> List[float]:
         return self.normal_on_body_b
 
+    @property
+    def bodies(self) -> Tuple[PhysicalBody, PhysicalBody]:
+        return self.body_a, self.body_b
+
     def __str__(self):
         return f"ContactPoint: {self.body_a.name} - {self.body_b.name}"
 
@@ -1125,17 +1183,16 @@ class ContactPointsList(list):
         :param previous_points: The initial points list.
         :return: A list of bodies that got removed.
         """
-        initial_bodies_in_contact = previous_points.get_bodies_in_contact()
-        current_bodies_in_contact = self.get_bodies_in_contact()
+        initial_bodies_in_contact = previous_points.get_all_bodies()
+        current_bodies_in_contact = self.get_all_bodies()
         return [body for body in initial_bodies_in_contact if body not in current_bodies_in_contact]
 
-    def get_bodies_in_contact(self) -> List[PhysicalBody]:
+    def get_all_bodies(self, excluded: List[PhysicalBody] = None) -> List[PhysicalBody]:
         """
-        Get the bodies in contact.
-
-        :return: A list of bodies that are in contact.
+        :return: A list of all involved bodies in the points.
         """
-        return [point.body_b for point in self]
+        excluded = excluded if excluded is not None else []
+        return list(set([body for point in self for body in point.bodies if body not in excluded]))
 
     def check_if_two_objects_are_in_contact(self, obj_a: Object, obj_b: Object) -> bool:
         """
@@ -1308,6 +1365,36 @@ class VirtualJoint:
         return hash(self.name)
 
 
+class Rotations(Dict[Optional[Union[Grasp, bool]], List[float]]):
+    """
+    A dictionary that defines standard quaternions for different grasps and orientations. This is mainly used
+    to automatically calculate all grasp descriptions of a robot gripper for the robot description.
+
+    SIDE_ROTATIONS: The quaternions for the different approach directions (front, back, left, right)
+    VERTICAL_ROTATIONS: The quaternions for the different vertical alignments, in case the object requires for
+    example a top grasp
+    HORIZONTAL_ROTATIONS: The quaternions for the different horizontal alignments, in case the gripper needs to roll
+    90°
+    """
+    SIDE_ROTATIONS = {
+        Grasp.FRONT: [0, 0, 0, 1],
+        Grasp.BACK: [0, 0, 1, 0],
+        Grasp.LEFT: [0, 0, -math.sqrt(2) / 2, math.sqrt(2) / 2],
+        Grasp.RIGHT: [0, 0, math.sqrt(2) / 2, math.sqrt(2) / 2],
+    }
+
+    VERTICAL_ROTATIONS = {
+        None: [0, 0, 0, 1],
+        Grasp.TOP: [0, math.sqrt(2) / 2, 0, math.sqrt(2) / 2],
+        Grasp.BOTTOM: [0, -math.sqrt(2) / 2, 0, math.sqrt(2) / 2],
+    }
+
+    HORIZONTAL_ROTATIONS = {
+        False: [0, 0, 0, 1],
+        True: [math.sqrt(2) / 2, 0, 0, math.sqrt(2) / 2],
+    }
+
+
 @dataclass
 class VirtualMobileBaseJoints:
     """
@@ -1393,9 +1480,9 @@ class RayResult:
         Check if the ray intersects with a body.
         return: Whether the ray intersects with a body.
         """
-        if not self.obj_id:
-            logwarn("obj_id should be available to check if the ray intersects with a body,"
-                    "It appears that the ray result is not valid.")
+        #if not self.obj_id:
+        #    logwarn("obj_id should be available to check if the ray intersects with a body,"
+        #            "It appears that the ray result is not valid.")
         return self.obj_id != -1
 
     @property
@@ -1460,3 +1547,77 @@ class ReasoningResult:
     """
     success: bool
     reasoned_parameter: Dict[str, Any] = field(default_factory=dict)
+
+
+
+@dataclass
+class FrozenObject:
+
+    name: str
+    """
+    Name of this Object
+    """
+    concept: Type[PhysicalObject]
+    """
+    The Concept of the Object as the PyCRAP concept
+    """
+    path: Optional[str] = None
+    """
+    The path to the source file
+    """
+    description: Optional[ObjectDescription] = None
+    """
+    The description of the object, this is a combination of links and joints
+    """
+    pose: Optional[PoseStamped] = field(default_factory=PoseStamped)
+    """
+    The pose at which this object is placed
+    """
+    links: Optional[Dict[str, FrozenLink]] = None
+    """
+    A dictionary with the link name as key and the link object as value
+    """
+    joints: Optional[Dict[str, FrozenJoint]] = None
+    """
+    A dictionary of all joints, with the joint name as key and the joint object as value
+    """
+
+
+@dataclass(frozen=True)
+class FrozenLink:
+    name: str
+    """
+    Name of this FrozenLink
+    """
+    pose: PoseStamped
+    """
+    Pose of this Link in the world frame
+    """
+    geometry: Union[VisualShape, List[VisualShape]]
+    """
+    The geometry of this link
+    """
+
+
+@dataclass(frozen=True)
+class FrozenJoint:
+    name: str
+    """
+    Name of this FrozenJoints
+    """
+    type: JointType
+    """
+    The type of this joint
+    """
+    children: Sequence[str]
+    """
+    A sequence of the names of all children
+    """
+    parent: Optional[str]
+    """
+    The name of the parent joint or None if there is no parent joint
+    """
+    state: float
+    """
+    State of the joint
+    """

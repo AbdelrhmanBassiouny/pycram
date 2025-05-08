@@ -10,7 +10,7 @@ from std_msgs.msg import ColorRGBA
 from visualization_msgs.msg import Marker, MarkerArray
 
 from ..datastructures.dataclasses import BoxVisualShape, CylinderVisualShape, MeshVisualShape, SphereVisualShape
-from ..datastructures.pose import Pose, Transform
+from ..datastructures.pose import PoseStamped, TransformStamped
 from ..datastructures.world import World
 from ..designator import ObjectDesignatorDescription
 from ..ros import  Duration, Time
@@ -24,15 +24,22 @@ class VizMarkerPublisher:
     Publishes an Array of visualization marker which represent the situation in the World
     """
 
-    def __init__(self, topic_name="/pycram/viz_marker", interval=0.1, reference_frame="map"):
+    def __init__(self, topic_name="/pycram/viz_marker", interval=0.1, reference_frame="map", use_prospection_world=False, publish_visuals=False):
         """
         The Publisher creates an Array of Visualization marker with a Marker for each link of each Object in the
         World. This Array is published with a rate of interval.
 
         :param topic_name: The name of the topic to which the Visualization Marker should be published.
         :param interval: The interval at which the visualization marker should be published, in seconds.
+        :param reference_frame: The reference frame of the visualization marker.
+        :param use_prospection_world: If True, the visualization marker will be published for the prospection world.
+        :param publish_visuals: If True, the visualization marker will be published.
         """
-        self.topic_name = topic_name
+        self.use_prospection_world = use_prospection_world
+        if self.use_prospection_world:
+            self.topic_name = "/pycram/prospection_viz_marker"
+        else:
+            self.topic_name = topic_name
         self.interval = interval
         self.reference_frame = reference_frame
 
@@ -40,7 +47,11 @@ class VizMarkerPublisher:
 
         self.thread = threading.Thread(target=self._publish)
         self.kill_event = threading.Event()
-        self.main_world = World.current_world if not World.current_world.is_prospection_world else World.current_world.world_sync.world
+        self.publish_visuals = publish_visuals
+        if self.use_prospection_world:
+            self.main_world = World.current_world.prospection_world
+        else:
+            self.main_world = World.current_world if not World.current_world.is_prospection_world else World.current_world.world_sync.world
         self.lock = self.main_world.object_lock
         self.thread.start()
         atexit.register(self._stop_publishing)
@@ -53,7 +64,7 @@ class VizMarkerPublisher:
             self.lock.acquire()
             marker_array = self._make_marker_array()
             self.lock.release()
-            # self.pub.publish(marker_array)
+            self.pub.publish(marker_array)
             time.sleep(self.interval)
 
     def _make_marker_array(self) -> MarkerArray:
@@ -69,7 +80,13 @@ class VizMarkerPublisher:
             if obj.name == "floor":
                 continue
             for link in obj.link_name_to_id.keys():
-                geom = obj.get_link_geometry(link)
+                if self.publish_visuals:
+                    geoms = obj.get_link_visual_geometry(link)
+                else:
+                    geoms = obj.get_link_geometry(link)
+                if not isinstance(geoms, list):
+                    geoms = [geoms]
+                geom = geoms[0] if len(geoms) > 0 else None
                 if not geom:
                     continue
                 msg = Marker()
@@ -82,13 +99,15 @@ class VizMarkerPublisher:
                 if obj.get_link_origin(link) is not None:
                     link_origin = obj.get_link_origin_transform(link)
                 else:
-                    link_origin = Transform()
+                    link_origin = TransformStamped.from_list()
                 link_pose_with_origin = link_pose * link_origin
-                msg.pose = link_pose_with_origin.to_pose().pose
+                msg.pose = link_pose_with_origin.to_pose_stamped().pose
 
                 color = obj.get_link_color(link).get_rgba()
 
                 msg.color = ColorRGBA(**dict(zip(["r", "g", "b","a"], color)))
+                if self.use_prospection_world:
+                    msg.color.a = 0.5
                 msg.lifetime = Duration(1)
 
                 if isinstance(geom, MeshVisualShape):
@@ -97,7 +116,7 @@ class VizMarkerPublisher:
                     if hasattr(geom, "scale") and geom.scale is not None:
                         msg.scale = Vector3(**dict(zip(["x", "y", "z"], geom.scale)))
                     else:
-                        msg.scale = Vector3(x=1, y=1, z=1)
+                        msg.scale = Vector3(x=1.0, y=1.0, z=1.0)
                     msg.mesh_use_embedded_materials = True
                 elif isinstance(geom, CylinderVisualShape):
                     msg.type = Marker.CYLINDER
@@ -105,7 +124,7 @@ class VizMarkerPublisher:
                 elif isinstance(geom, BoxVisualShape):
                     msg.type = Marker.CUBE
                     size = np.array(geom.size) * 2
-                    msg.scale = Vector3(x=size[0], y=size[1], z=size[2])
+                    msg.scale = Vector3(x=float(size[0]), y=float(size[1]), z=float(size[2]))
                 elif isinstance(geom, SphereVisualShape):
                     msg.type = Marker.SPHERE
                     msg.scale = Vector3(x=geom.radius * 2, y=geom.radius * 2, z=geom.radius * 2)
@@ -144,7 +163,7 @@ class ManualMarkerPublisher:
         self.interval = interval
         self.log_message = None
 
-    def publish(self, pose: Pose, color: Optional[List] = None, bw_object: Optional[ObjectDesignatorDescription] = None,
+    def publish(self, pose: PoseStamped, color: Optional[List] = None, bw_object: Optional[ObjectDesignatorDescription] = None,
                 name: Optional[str] = None):
         """
         Publish a pose or an object into the MarkerArray.
@@ -165,7 +184,7 @@ class ManualMarkerPublisher:
         loginfo(self.log_message)
         thread.join()
 
-    def _publish(self, pose: Pose, bw_object: Optional[ObjectDesignatorDescription] = None, name: Optional[str] = None,
+    def _publish(self, pose: PoseStamped, bw_object: Optional[ObjectDesignatorDescription] = None, name: Optional[str] = None,
                  color: Optional[List] = None):
         """
         Publish the marker into the MarkerArray
@@ -183,7 +202,7 @@ class ManualMarkerPublisher:
 
             sleep(self.interval)
 
-    def _publish_pose(self, name: str, pose: Pose, color: Optional[List] = None):
+    def _publish_pose(self, name: str, pose: PoseStamped, color: Optional[List] = None):
         """
         Publish a Pose as a marker
 
@@ -205,7 +224,7 @@ class ManualMarkerPublisher:
         self.marker_array_pub.publish(self.marker_array)
         self.log_message = f"Pose '{name}' published"
 
-    def _publish_object(self, name: Optional[str], pose: Pose, bw_object: ObjectDesignatorDescription):
+    def _publish_object(self, name: Optional[str], pose: PoseStamped, bw_object: ObjectDesignatorDescription):
         """
         Publish an Object as a marker
 
@@ -231,7 +250,7 @@ class ManualMarkerPublisher:
         self.marker_array_pub.publish(self.marker_array)
         self.log_message = f"Object '{name}' published"
 
-    def _make_marker_array(self, name, marker_type: int, marker_pose: Pose, marker_scales: Tuple = (1.0, 1.0, 1.0),
+    def _make_marker_array(self, name, marker_type: int, marker_pose: PoseStamped, marker_scales: Tuple = (1.0, 1.0, 1.0),
                            color_rgba: ColorRGBA = ColorRGBA(**dict(zip(["r", "g", "b","a"], [1.0, 1.0, 1.0, 1.0]))),
                            path_to_resource: Optional[str] = None):
         """
@@ -269,7 +288,7 @@ class ManualMarkerPublisher:
         self.marker_overview[name] = new_marker.id
         self.current_id += 1
 
-    def _update_marker(self, marker_id: int, new_pose: Pose) -> bool:
+    def _update_marker(self, marker_id: int, new_pose: PoseStamped) -> bool:
         """
         Update an existing marker to a new pose
 
@@ -344,7 +363,7 @@ class TrajectoryPublisher:
         time.sleep(0.5) # this is needed to synchronize the publisher creation thread
         return pub
 
-    def visualize_trajectory(self, trajectory: List[Pose]):
+    def visualize_trajectory(self, trajectory: List[PoseStamped]):
         """
         Visualize a trajectory in rviz as a series of arrows.
 
@@ -355,7 +374,7 @@ class TrajectoryPublisher:
         for index, (p1, p2) in enumerate(zip(trajectory, trajectory[1:])):
 
             marker = Marker()
-            marker.header.frame_id = p1.frame
+            marker.header.frame_id = p1.frame_id
             marker.id = index
             marker.ns = "trajectory_arrows"
             marker.action = Marker.ADD
