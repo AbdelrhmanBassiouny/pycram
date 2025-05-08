@@ -64,6 +64,10 @@ class ManipulatorData:
     """
     Name of the gripper at the end of the arm.
     """
+    gripper_start_link: str
+    """
+    Name of the gripper start link.
+    """
     gripper_tool_frame: str
     """
     Name of the frame of the gripper tool.

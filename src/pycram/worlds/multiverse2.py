@@ -10,13 +10,17 @@ from pycrap.ontologies import PhysicalObject, Floor
 from ..config.multiverse_conf import MultiverseConfig
 from ..datastructures.dataclasses import Color, ContactPointsList, ContactPoint, LateralFriction, RayResult
 from ..datastructures.enums import WorldMode, JointType, MultiverseJointCMD
-from ..datastructures.pose import Pose
+from ..datastructures.pose import Pose, PoseStamped, Vector3, Quaternion
 from ..datastructures.world import World
 from ..datastructures.world_entity import PhysicalBody
 from ..description import Link, Joint
 from ..failures import ObjectNotFound, LinkNotFound
 from ..object_descriptors.generic import ObjectDescription as GenericObjectDescription
-from ..object_descriptors.mjcf import ObjectDescription as MJCF
+try:
+    from ..object_descriptors.mjcf import ObjectDescription as MJCF
+except ImportError:
+    MJCF = None
+from ..object_descriptors.urdf import ObjectDescription as URDF
 from ..robot_description import RobotDescription
 from ..ros import logwarn, logerr
 from ..utils import RayTestUtils, xyzw_to_wxyz_arr, adjust_camera_pose_based_on_target, wxyz_to_xyzw_arr
@@ -42,10 +46,9 @@ class Multiverse(World):
     """
     A flag to check if the multiverse resources have been added.
     """
-
     Object.extension_to_description_type[MJCF.get_file_extension()] = MJCF
     """
-    Add the MJCF description extension to the extension to description type mapping for the objects.
+    Add the MJCF/URDF description extension to the extension to description type mapping for the objects.
     """
 
     def _init_world(self, mode: WorldMode):
@@ -161,8 +164,8 @@ class Multiverse(World):
         # object_factory.export_to_mjcf(save_path)
         return self.load_object_and_get_id(description.name, pose, PhysicalObject)
 
-    def get_images_for_target(self, target_pose: Pose,
-                              cam_pose: Pose,
+    def get_images_for_target(self, target_pose: PoseStamped,
+                              cam_pose: PoseStamped,
                               size: int = 256,
                               camera_min_distance: float = 0.1,
                               camera_max_distance: int = 3,
@@ -211,19 +214,19 @@ class Multiverse(World):
     def get_object_link_names(self, obj: Object) -> List[str]:
         return [link.name for link in obj.description.links]
 
-    def reset_object_base_pose(self, obj: Object, pose: Pose) -> bool:
+    def reset_object_base_pose(self, obj: Object, pose: PoseStamped) -> bool:
         if obj.name not in self.simulator.get_all_body_names().result:
             logwarn(f"object {obj.name} not found in the simulator.")
             return False
-        self.simulator.set_body_position(obj.name, pose.position_as_array())
-        self.simulator.set_body_quaternion(obj.name, xyzw_to_wxyz_arr(pose.orientation_as_array()))
+        self.simulator.set_body_position(obj.name, pose.position.to_numpy())
+        self.simulator.set_body_quaternion(obj.name, xyzw_to_wxyz_arr(pose.orientation.to_numpy()))
         return True
 
-    def reset_multiple_objects_base_poses(self, objects: Dict[Object, Pose]) -> bool:
-        objects_positions = {obj.name: pose.position_as_array()
+    def reset_multiple_objects_base_poses(self, objects: Dict[Object, PoseStamped]) -> bool:
+        objects_positions = {obj.name: pose.position.to_numpy()
                              for obj, pose in objects.items()
                              if self.check_object_exists(obj)}
-        objects_quaternions = {obj.name: xyzw_to_wxyz_arr(pose.orientation_as_array())
+        objects_quaternions = {obj.name: xyzw_to_wxyz_arr(pose.orientation.to_numpy())
                                for obj, pose in objects.items()
                                if self.check_object_exists(obj)}
         if len(objects_positions) != len(objects):
@@ -233,74 +236,76 @@ class Multiverse(World):
         self.simulator.set_bodies_quaternions(objects_quaternions)
         return True
 
-    def get_multiple_object_poses(self, objects: List[Object]) -> Dict[str, Pose]:
+    def get_multiple_object_poses(self, objects: List[Object]) -> Dict[str, PoseStamped]:
         return self._get_multiple_body_poses(objects)
 
-    def get_multiple_object_positions(self, objects: List[Object]) -> Dict[str, np.ndarray]:
+    def get_multiple_object_positions(self, objects: List[Object]) -> Dict[str, Vector3]:
         return self._get_multiple_body_positions(objects)
 
-    def get_multiple_object_orientations(self, objects: List[Object]) -> Dict[str, np.ndarray]:
+    def get_multiple_object_orientations(self, objects: List[Object]) -> Dict[str, Quaternion]:
         return self._get_multiple_body_orientations(objects)
 
-    def get_object_pose(self, obj: Object) -> Pose:
+    def get_object_pose(self, obj: Object) -> PoseStamped:
         return self.get_link_pose(obj.root_link)
 
-    def get_object_position(self, obj: Object) -> np.ndarray:
+    def get_object_position(self, obj: Object) -> Vector3:
         return self._get_body_position(obj)
 
-    def get_object_orientation(self, obj: Object) -> np.ndarray:
+    def get_object_orientation(self, obj: Object) -> Quaternion:
         return self._get_body_orientation(obj)
 
-    def get_multiple_link_poses(self, links: List[Link]) -> Dict[str, Pose]:
+    def get_multiple_link_poses(self, links: List[Link]) -> Dict[str, PoseStamped]:
         return self._get_multiple_body_poses(links)
 
-    def get_multiple_link_positions(self, links: List[Link]) -> Dict[str, np.ndarray]:
+    def get_multiple_link_positions(self, links: List[Link]) -> Dict[str, Vector3]:
         return self._get_multiple_body_positions(links)
 
-    def get_multiple_link_orientations(self, links: List[Link]) -> Dict[str, np.ndarray]:
+    def get_multiple_link_orientations(self, links: List[Link]) -> Dict[str, Quaternion]:
         return self._get_multiple_body_orientations(links)
 
-    def get_link_pose(self, link: Link) -> Pose:
+    def get_link_pose(self, link: Link) -> PoseStamped:
         return self._get_body_pose(link)
 
-    def get_link_position(self, link: Link) -> np.ndarray:
+    def get_link_position(self, link: Link) -> Vector3:
         return self._get_body_position(link)
 
-    def get_link_orientation(self, link: Link) -> np.ndarray:
+    def get_link_orientation(self, link: Link) -> Quaternion:
         return self._get_body_orientation(link.object)
 
-    def _get_multiple_body_poses(self, bodies: List[PhysicalBody]) -> Dict[str, Pose]:
+    def _get_multiple_body_poses(self, bodies: List[PhysicalBody]) -> Dict[str, PoseStamped]:
         positions_data = self._get_multiple_body_positions(bodies)
         quaternions_data = self._get_multiple_body_orientations(bodies)
-        return {body.name: Pose(positions_data[body.name], quaternions_data[body.name]) for body in bodies}
+        return {body.name: PoseStamped(Pose(positions_data[body.name], quaternions_data[body.name])) for body in bodies}
 
-    def _get_multiple_body_positions(self, bodies: List[PhysicalBody]) -> Dict[str, np.ndarray]:
-        return self.simulator.get_bodies_positions([body.name for body in bodies]).result
+    def _get_multiple_body_positions(self, bodies: List[PhysicalBody]) -> Dict[str, Vector3]:
+        result = self.simulator.get_bodies_positions([body.name for body in bodies]).result
+        return {k: Vector3(*v.tolist()) for k, v in result.items()}
 
-    def _get_multiple_body_orientations(self, bodies: List[PhysicalBody]) -> Dict[str, np.ndarray]:
+    def _get_multiple_body_orientations(self, bodies: List[PhysicalBody]) -> Dict[str, Quaternion]:
         """
         :param bodies: The list of physical bodies.
         :return: The orientations of the bodies as a dictionary from body name to quaternion array.
         """
-        return self.simulator.get_bodies_quaternions([body.name for body in bodies]).result
+        result = self.simulator.get_bodies_quaternions([body.name for body in bodies]).result
+        return {k: Quaternion(*v.tolist()) for k, v in result.items()}
 
-    def _get_body_pose(self, body: PhysicalBody) -> Pose:
-        return Pose(self._get_body_position(body), self._get_body_orientation(body))
+    def _get_body_pose(self, body: PhysicalBody) -> PoseStamped:
+        return PoseStamped(Pose(self._get_body_position(body), self._get_body_orientation(body)))
 
-    def _get_body_position(self, body: PhysicalBody) -> np.ndarray:
+    def _get_body_position(self, body: PhysicalBody) -> Vector3:
         if body.parent_entity.ontology_concept == Floor:
-            return np.array([0, 0, 0])
-        return self.simulator.get_body_position(body.name).result
+            return Vector3()
+        return Vector3(*self.simulator.get_body_position(body.name).result.tolist())
 
-    def _get_body_orientation(self, body: PhysicalBody) -> np.ndarray:
+    def _get_body_orientation(self, body: PhysicalBody) -> Quaternion:
         if body.parent_entity.ontology_concept == Floor:
-            return np.array([0, 0, 0, 1])
+            return Quaternion()
         quat_arr = self.simulator.get_body_quaternion(body.name).result
         if quat_arr is None:
             err_msg = f"Failed to get orientation of body {body.name}"
             logerr(err_msg)
             raise ValueError(err_msg)
-        return wxyz_to_xyzw_arr(quat_arr)
+        return Quaternion(*wxyz_to_xyzw_arr(quat_arr).tolist())
 
     def _set_multiple_joint_positions(self, joint_positions: Dict[Joint, float]) -> bool:
         joints_data = {joint.name: position
@@ -333,12 +338,12 @@ class Multiverse(World):
 
         if not self.conf.let_pycram_move_attached_objects:
             parent_link_name, child_link_name = self.get_constraint_link_names(constraint)
-            attachment_pose = constraint.parent_to_child_transform.to_pose()
+            attachment_pose = constraint.parent_to_child_transform.to_pose_stamped()
             self._attach(child_link_name, parent_link_name, attachment_pose)
 
         return self._update_constraint_collection_and_get_latest_id(constraint)
 
-    def _attach(self, child_link_name: str, parent_link_name: str, attachment_pose: Pose) -> None:
+    def _attach(self, child_link_name: str, parent_link_name: str, attachment_pose: PoseStamped) -> None:
         """
         Attach the child link to the parent link.
 
@@ -346,8 +351,8 @@ class Multiverse(World):
         :param parent_link_name: The name of the parent link.
         :param attachment_pose: The attachment pose.
         """
-        self.simulator.attach(child_link_name, parent_link_name, attachment_pose.position_as_array(),
-                              xyzw_to_wxyz_arr(attachment_pose.orientation_as_array()))
+        self.simulator.attach(child_link_name, parent_link_name, attachment_pose.position.to_numpy(),
+                              xyzw_to_wxyz_arr(attachment_pose.orientation.to_numpy()))
 
     def _update_constraint_collection_and_get_latest_id(self, constraint: Constraint) -> int:
         """

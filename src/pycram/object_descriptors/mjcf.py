@@ -15,19 +15,13 @@ from ..datastructures.pose import PoseStamped
 from ..description import JointDescription as AbstractJointDescription, \
     LinkDescription as AbstractLinkDescription, ObjectDescription as AbstractObjectDescription, ObjectDescription
 from ..failures import MultiplePossibleTipLinks
-from ..ros import  get_parameter
+from ..ros import get_parameter, logwarn
 
 try:
-    from multiverse_parser import Configuration, Factory, InertiaSource, GeomBuilder
-    from multiverse_parser import (WorldBuilder,
-                                   GeomType, GeomProperty,
-                                   MeshProperty,
-                                   MaterialProperty)
-    from multiverse_parser import MjcfExporter
-    from pxr import Usd, UsdGeom
+    from .mjcf_helpers import ObjectFactory, Configuration
 except ImportError:
-    # do not import this module if multiverse is not found
-    raise ImportError("Multiverse not found.")
+    ObjectFactory = None
+    Configuration = None
 
 
 class LinkDescription(AbstractLinkDescription):
@@ -134,8 +128,10 @@ class JointDescription(AbstractJointDescription):
         """
         :return: The type of this joint.
         """
-        if hasattr(self.parsed_description, 'type'):
+        if hasattr(self.parsed_description, 'type') and self.parsed_description.type is not None:
             return self.mjcf_type_map[self.parsed_description.type]
+        elif hasattr(self.parsed_description, 'dclass') and self.parsed_description.dclass is not None:
+            return self.mjcf_type_map[MJCFJointType.HINGE.value]
         else:
             return self.mjcf_type_map[MJCFJointType.FREE.value]
 
@@ -196,132 +192,6 @@ class JointDescription(AbstractJointDescription):
         raise NotImplementedError("Friction is not implemented for MJCF joints.")
 
 
-class ObjectFactory(Factory):
-    """
-    Create MJCF object descriptions from mesh files.
-    """
-
-    def __init__(self, file_path: str, config: Configuration):
-        super().__init__(file_path, config)
-
-    def from_mesh_file(self, object_name: str, texture_type: str = "png"):
-
-        self._world_builder = WorldBuilder(usd_file_path=self.tmp_usd_file_path)
-
-        body_builder = self._world_builder.add_body(body_name=object_name)
-
-        tmp_usd_mesh_file_path, tmp_origin_mesh_file_path = self.import_mesh(
-            mesh_file_path=self.source_file_path, merge_mesh=True)
-        mesh_stage = Usd.Stage.Open(tmp_usd_mesh_file_path)
-        for idx, mesh_prim in enumerate([prim for prim in mesh_stage.Traverse() if prim.IsA(UsdGeom.Mesh)]):
-            mesh_name = mesh_prim.GetName()
-            mesh_path = mesh_prim.GetPath()
-            mesh_property = MeshProperty.from_mesh_file_path(mesh_file_path=tmp_usd_mesh_file_path,
-                                                             mesh_path=mesh_path)
-            # mesh_property._texture_coordinates = None # TODO: See if needed otherwise remove it.
-            geom_property = GeomProperty(geom_type=GeomType.MESH,
-                                         is_visible=False,
-                                         is_collidable=True)
-            geom_builder = body_builder.add_geom(geom_name=f"SM_{object_name}_mesh_{idx}",
-                                                 geom_property=geom_property)
-            geom_builder.add_mesh(mesh_name=mesh_name, mesh_property=mesh_property)
-
-            # Add texture if available
-            texture_file_path = self.source_file_path.replace(pathlib.Path(self.source_file_path).suffix,
-                                                              f".{texture_type}")
-            if pathlib.Path(texture_file_path).exists():
-                self.add_material_with_texture(geom_builder=geom_builder, material_name=f"M_{object_name}_{idx}",
-                                              texture_file_path=texture_file_path)
-
-            geom_builder.build()
-
-        body_builder.compute_and_set_inertial(inertia_source=InertiaSource.FROM_COLLISION_MESH)
-
-    @staticmethod
-    def add_material_with_texture(geom_builder: GeomBuilder, material_name: str, texture_file_path: str):
-        """
-        Add a material with a texture to the geom builder.
-
-        :param geom_builder: The geom builder to add the material to.
-        :param material_name: The name of the material.
-        :param texture_file_path: The path to the texture file.
-        """
-        material_property = MaterialProperty(diffuse_color=texture_file_path,
-                                             opacity=None,
-                                             emissive_color=None,
-                                             specular_color=None)
-        geom_builder.add_material(material_name=material_name,
-                                  material_property=material_property)
-
-    def export_to_mjcf(self, output_file_path: str):
-        """
-        Export the object to a MJCF file.
-
-        :param output_file_path: The path to the output file.
-        """
-        exporter = MjcfExporter(self, output_file_path)
-        exporter.build()
-        exporter.export(keep_usd=False)
-
-
-class PrimitiveObjectFactory(ObjectFactory):
-
-    def __init__(self, object_name: str, shape_data: VisualShapeUnion, save_path: str,
-                 orientation: Optional[List[float]] = None):
-        """
-        Create an MJCF object description from a primitive shape.
-
-        :param object_name: The name of the object.
-        :param shape_data: The shape data of the object.
-        :param save_path: The path to save the MJCF file.
-        :param orientation: The orientation of the object.
-        """
-        self.shape_data: VisualShapeUnion = shape_data
-        self.orientation: List[float] = [0, 0, 0, 1] if orientation is None else orientation
-        config = Configuration(model_name=object_name,
-                               fixed_base=False,
-                               with_visual=True,
-                               with_collision=True,
-                               default_rgba=np.array(shape_data.rgba_color.get_rgba()))
-        super().__init__(save_path, config)
-
-    def build_shape(self):
-
-        self._world_builder = WorldBuilder(usd_file_path=self.tmp_usd_file_path)
-
-        body_builder = self._world_builder.add_body(body_name=self.config.model_name)
-
-        geom_type_map = {
-            Shape.SPHERE: GeomType.SPHERE,
-            Shape.BOX: GeomType.CUBE,
-            Shape.CYLINDER: GeomType.CYLINDER,
-            Shape.PLANE: GeomType.PLANE,
-            Shape.CAPSULE: GeomType.CAPSULE,
-        }
-        geom_property = GeomProperty(geom_type=geom_type_map[self.shape_data.visual_geometry_type],
-                                     is_visible=self.config.with_visual,
-                                     is_collidable=self.config.with_collision,
-                                     rgba=self.config.default_rgba)
-
-        geom_builder = body_builder.add_geom(
-            geom_name=f"{self.config.model_name}_Shape",
-            geom_property=geom_property
-        )
-        geom_pos = self.shape_data.visual_frame_position
-        geom_quat = np.array(self.orientation)
-        if self.shape_data.visual_geometry_type == Shape.PLANE:
-            geom_builder.set_transform(pos=geom_pos, quat=geom_quat, scale=np.array([50, 50, 1]))
-        elif self.shape_data.visual_geometry_type == Shape.BOX:
-            geom_builder.set_transform(pos=geom_pos, quat=geom_quat, scale=np.array(self.shape_data.half_extents) * 2)
-        elif self.shape_data.visual_geometry_type == Shape.SPHERE:
-            geom_builder.set_transform(pos=geom_pos, quat=geom_quat)
-            geom_builder.set_attribute(radius=self.shape_data.radius)
-        elif self.shape_data.visual_geometry_type in [Shape.CYLINDER, Shape.CAPSULE]:
-            geom_builder.set_transform(pos=geom_pos, quat=geom_quat)
-            geom_builder.set_attribute(radius=self.shape_data.radius, height=self.shape_data.length)
-        geom_builder.build()
-
-
 class ObjectDescription(AbstractObjectDescription):
     """
     A class that represents an object description of an object.
@@ -346,8 +216,8 @@ class ObjectDescription(AbstractObjectDescription):
     class Joint(AbstractObjectDescription.Joint, JointDescription):
         ...
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, path: Optional[str] = None):
+        super().__init__(path)
         self._link_map = None
         self._joint_map = None
         self._child_map = None
@@ -411,7 +281,11 @@ class ObjectDescription(AbstractObjectDescription):
         """
         child_map = self.child_map
         parent_map = {}
+        all_children = [child[1] for children in child_map.values() for child in children]
         for parent, children in child_map.items():
+            if parent not in all_children:
+                # This is a root link
+                parent_map[parent] = (None, None)
             for child in children:
                 parent_map[child[1]] = (child[0], parent)
         return parent_map
@@ -500,6 +374,8 @@ class ObjectDescription(AbstractObjectDescription):
         model_dir = pathlib.Path(model_path).parent
         for rel_dir_attrib in [self.MESH_DIR_ATTR, self.TEXTURE_DIR_ATTR]:
             rel_dir = compiler.get(rel_dir_attrib)
+            if rel_dir is None:
+                continue
             abs_dir = str(pathlib.Path(os.path.join(model_dir, rel_dir)).resolve())
             if rel_dir_attrib == self.MESH_DIR_ATTR:
                 self._meshes_dir = abs_dir
@@ -592,7 +468,7 @@ class ObjectDescription(AbstractObjectDescription):
 
     @property
     def name(self) -> str:
-        return self.parsed_description.name
+        return self.parsed_description.model
 
 
 def parse_pose_from_body_element(body: mjcf.Element) -> PoseStamped:

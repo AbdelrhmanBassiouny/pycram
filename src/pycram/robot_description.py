@@ -17,6 +17,10 @@ from .datastructures.pose import GraspDescription, PoseStamped
 from .helper import parse_mjcf_actuators, find_multiverse_resources_path, \
     get_robot_description_path
 from .object_descriptors.urdf import ObjectDescription as URDFObject
+try:
+    from .object_descriptors.mjcf import ObjectDescription as MJCFObject
+except ImportError:
+    MJCFObject = None
 from .ros import logerr
 from .tf_transformations import quaternion_multiply
 from .utils import suppress_stdout_stderr
@@ -157,9 +161,12 @@ class RobotDescription:
         self.torso_link = torso_link
         self.torso_joint = torso_joint
         self.ignore_joints = ignore_joints if ignore_joints else []
-        with suppress_stdout_stderr():
-            # Since parsing URDF causes a lot of warning messages which can't be deactivated, we suppress them
-            self.urdf_object = URDFObject(urdf_path)
+        if urdf_path is None and mjcf_path is not None and MJCFObject is not None:
+            self.urdf_object = MJCFObject(mjcf_path)
+        else:
+            with suppress_stdout_stderr():
+                # Since parsing URDF causes a lot of warning messages which can't be deactivated, we suppress them
+                self.urdf_object = URDFObject(urdf_path)
         self.joint_types = {joint.name: joint.type for joint in self.urdf_object.joints}
         self.joint_actuators: Optional[Dict] = parse_mjcf_actuators(mjcf_path) if mjcf_path is not None else None
         self.kinematic_chains: Dict[str, KinematicChainDescription] = {}
@@ -542,6 +549,7 @@ class KinematicChainDescription:
 
     def create_end_effector(self,
                             name: str,
+                            start_link: str,
                             tool_frame,
                             opened_joint_values: Dict[str, float],
                             closed_joint_values: Dict[str, float],
@@ -553,6 +561,7 @@ class KinematicChainDescription:
         Create a gripper end effector description.
 
         :param name: The name of the gripper.
+        :param start_link: The start link of the gripper.
         :param tool_frame: The name of the tool frame.
         :param opened_joint_values: The joint values when the gripper is open.
         :param closed_joint_values: The joint values when the gripper is closed.
@@ -568,12 +577,18 @@ class KinematicChainDescription:
             gripper_filename = get_robot_description_path(relative_dir, name,
                                                           description_type=DescriptionType.URDF,
                                                           resources_dir=resources_dir)
-            gripper_urdf_obj = URDFObject(gripper_filename)
+            if gripper_filename is None and MJCFObject is not None:
+                gripper_filename = get_robot_description_path(relative_dir, name,
+                                                              description_type=DescriptionType.MJCF,
+                                                              resources_dir=resources_dir)
+                gripper_urdf_obj = MJCFObject(gripper_filename)
+            else:
+                gripper_urdf_obj = URDFObject(gripper_filename)
             gripper_object_name = name
         else:
             gripper_urdf_obj = self.urdf_object
             gripper_object_name = None
-        gripper = EndEffectorDescription(description_name, name, tool_frame,
+        gripper = EndEffectorDescription(description_name, start_link, tool_frame,
                                          gripper_urdf_obj, gripper_object_name=gripper_object_name,
                                          opening_distance=opening_distance)
 
@@ -810,7 +825,7 @@ class EndEffectorDescription:
         Traverses the URDF object to get all links and joints of the end effector below the start link.1
         """
         start_link_obj = self.urdf_object.link_map[self.start_link]
-        links = [start_link_obj.name]
+        links = [link.name for link in self.urdf_object.links]
         while len(links) != 0:
             link = links.pop()
             self.link_names.append(link)
@@ -941,7 +956,7 @@ def create_manipulator_description(data: ManipulatorData,
     arm = robot_description.add_arm(data.arm_end_link,
                                     arm_home_values=dict(zip(data.joint_names, data.home_joint_values)))
 
-    arm.create_end_effector(data.gripper_name, data.gripper_tool_frame,
+    arm.create_end_effector(data.gripper_name, data.gripper_start_link, data.gripper_tool_frame,
                             dict(zip(data.gripper_joint_names, data.open_joint_values)),
                             dict(zip(data.gripper_joint_names, data.closed_joint_values)),
                             relative_dir=data.gripper_relative_dir, opening_distance=data.opening_distance)

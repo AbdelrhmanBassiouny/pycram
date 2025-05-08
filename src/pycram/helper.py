@@ -4,12 +4,13 @@ Classes:
 Singleton -- implementation of singleton metaclass
 """
 import os
-from typing_extensions import Dict, Optional, Tuple
 import xml.etree.ElementTree as ET
+
+from typing_extensions import Dict, Optional, Tuple
 
 from .datastructures.enums import DescriptionType
 from .object_descriptors.urdf import ObjectDescription as URDFObject
-from .ros import  logwarn
+from .ros import logwarn
 
 
 class Singleton(type):
@@ -29,7 +30,7 @@ class Singleton(type):
 
 
 def get_robot_urdf_and_mjcf_file_paths(robot_name: str, robot_relative_dir: str,
-                                       multiverse_resources: Optional[str] = None)\
+                                       multiverse_resources: Optional[str] = None) \
         -> Tuple[Optional[str], Optional[str]]:
     """
     Get the paths to the MJCF and URDF files of a robot from the Multiverse resources directory.
@@ -43,11 +44,17 @@ def get_robot_urdf_and_mjcf_file_paths(robot_name: str, robot_relative_dir: str,
     urdf_filename: Optional[str] = None
     mjcf_filename: Optional[str] = None
     if multiverse_resources is not None:
-        urdf_filename = get_robot_description_path(robot_relative_dir, robot_name,
-                                                   description_type=URDFObject,
-                                                   resources_dir=multiverse_resources)
-        mjcf_filename = get_robot_description_path(robot_relative_dir, robot_name,
-                                                   resources_dir=multiverse_resources)
+        cached = os.path.join(multiverse_resources, 'cached')
+        for resources_dir in [cached, multiverse_resources]:
+            if urdf_filename is None:
+                urdf_filename = get_robot_description_path(robot_relative_dir, robot_name,
+                                                           description_type=URDFObject,
+                                                           resources_dir=resources_dir)
+            if mjcf_filename is None:
+                mjcf_filename = get_robot_description_path(robot_relative_dir, robot_name,
+                                                           resources_dir=resources_dir)
+            if urdf_filename is not None and mjcf_filename is not None:
+                break
     return urdf_filename, mjcf_filename
 
 
@@ -100,9 +107,13 @@ def get_robot_description_path(robot_relative_dir: str, robot_name: str,
     if extension not in file_name:
         file_name = file_name + extension
 
-    robot_folders = [os.path.join(resources_dir, 'robots', robot_relative_dir)]
+    robot_folders = [os.path.join(resources_dir, 'robots', robot_relative_dir),
+                     os.path.join(resources_dir, 'mjcf/mujoco_menagerie', robot_relative_dir),
+                     resources_dir]
     robot_folders.append(os.path.join(robot_folders[0], robot_name))
     for robot_folder in robot_folders:
+        if os.path.exists(os.path.join(robot_folder, file_name)):
+            return os.path.join(robot_folder, file_name)
         if resources_dir is not None and os.path.exists(robot_folder):
             list_dir = os.listdir(robot_folder)
             for extension_folder in extension_folders:
@@ -140,7 +151,7 @@ def find_multiverse_path() -> Optional[str]:
     """
     # Get the value of PYTHONPATH environment variable
     pythonpath = os.getenv('PYTHONPATH')
-    multiverse_relative_path = "Multiverse/multiverse"
+    multiverse_relative_paths = ["Multiverse/multiverse", "Multiverse-Simulators-Connector"]
 
     # Check if PYTHONPATH is set
     if pythonpath:
@@ -149,9 +160,11 @@ def find_multiverse_path() -> Optional[str]:
 
         # Iterate through each path and check if 'Multiverse' is in it
         for path in paths:
-            if multiverse_relative_path in path:
-                multiverse_path = path.split(multiverse_relative_path)[0]
-                return multiverse_path + multiverse_relative_path
+            for multiverse_relative_path in multiverse_relative_paths:
+                if multiverse_relative_path in path:
+                    multiverse_path = path.split(multiverse_relative_path)[0]
+                    return multiverse_path + multiverse_relative_path
+    return None
 
 
 def perform(action_instance):

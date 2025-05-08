@@ -5,6 +5,7 @@ from pathlib import Path
 
 import numpy as np
 from deprecated import deprecated
+from multiverse_parser import MjcfExporter
 from trimesh.parent import Geometry3D
 from typing_extensions import Type, Optional, Dict, Tuple, List, Union
 
@@ -199,7 +200,24 @@ class Object(PhysicalBody):
         if path is None:
             raise ObjectDescriptionUndefined(self.name)
         extension = Path(path).suffix
-        if extension in self.extension_to_description_type:
+        if extension == ".xml":
+            filename_from_path = os.path.basename(path).split(".")[0]
+            urdf_filepath = os.path.join(self.world.cache_manager.cache_dir, f"{filename_from_path}.urdf")
+            if not os.path.exists(urdf_filepath):
+                from multiverse_parser import MjcfImporter, UrdfExporter
+                factory = MjcfImporter(file_path=path,
+                                       fixed_base=True,
+                                       with_visual=True,
+                                       with_collision=True,
+                                       with_physics=True)
+                factory.import_model()
+                mjcf_exporter = UrdfExporter(factory=factory,
+                                             file_path=urdf_filepath)
+                mjcf_exporter.build()
+                mjcf_exporter.export(keep_usd=False)
+            self.description = URDF()
+            self.path = urdf_filepath
+        elif extension in self.extension_to_description_type:
             self.description = self.extension_to_description_type[extension]()
         elif extension in ObjectDescription.mesh_extensions:
             self.description = self.world.conf.default_description_type()
