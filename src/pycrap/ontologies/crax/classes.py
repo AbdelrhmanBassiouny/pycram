@@ -53,7 +53,11 @@ class Food(Base):
     ...
 
 
-class Apartment(Base):
+class Environment(Base):
+    ...
+
+
+class Apartment(Environment):
     ...
 
 
