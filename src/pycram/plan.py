@@ -286,6 +286,25 @@ def managed_node(func: Callable) -> Callable:
     return wrapper
 
 
+def pause_resume(func: Callable) -> Callable:
+    """
+    A decorator for pausing the plan before a function call and then resuming it after the call ends.
+
+    :param func: The callable to wrap with the decorator.
+    :return: The wrapped callable
+    """
+    def wrapper(*args, **kwargs) -> Any:
+        plan = Plan.current_plan
+        if plan:
+            plan.current_node.pause()
+            result = func(*args, **kwargs)
+            plan.current_node.resume()
+            return result
+        else:
+            return func(*args, **kwargs)
+    return wrapper
+
+
 @dataclass
 class PlanNode:
     status: TaskStatus = TaskStatus.CREATED
