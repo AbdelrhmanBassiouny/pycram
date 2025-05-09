@@ -5,7 +5,6 @@ from pathlib import Path
 
 import numpy as np
 from deprecated import deprecated
-from multiverse_parser import MjcfExporter
 from trimesh.parent import Geometry3D
 from typing_extensions import Type, Optional, Dict, Tuple, List, Union, Any
 
@@ -28,8 +27,12 @@ from ..ros import logwarn, logerr, Time
 
 try:
     from ..object_descriptors.mjcf import ObjectDescription as MJCF
-except ImportError:
+    from multiverse_parser import MjcfImporter, UrdfExporter
+except ImportError as e:
+    logwarn(f"{e}, looks like the multiverse_parser package is not installed. ")
     MJCF = None
+    MjcfImporter = None
+    UrdfExporter = None
 from ..robot_description import RobotDescriptionManager, RobotDescription
 from ..world_concepts.constraints import Attachment
 from pycrap.ontologies import PhysicalObject, Joint, \
@@ -209,8 +212,8 @@ class Object(PhysicalBody, HasParameters):
         if extension == ".xml":
             filename_from_path = os.path.basename(path).split(".")[0]
             urdf_filepath = os.path.join(self.world.cache_manager.cache_dir, f"{filename_from_path}.urdf")
-            if not os.path.exists(urdf_filepath):
-                from multiverse_parser import MjcfImporter, UrdfExporter
+            if (not os.path.exists(urdf_filepath) and MjcfImporter is not None
+                    and UrdfExporter is not None):
                 factory = MjcfImporter(file_path=path,
                                        fixed_base=True,
                                        with_visual=True,

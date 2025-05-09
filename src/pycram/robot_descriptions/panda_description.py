@@ -43,14 +43,13 @@ if urdf_filename is None and mjcf_filename is not None:
 
     factory = MjcfImporter(file_path=mjcf_filename,
                            fixed_base=True,
+                           root_name=data.base_link,
                            with_visual=True,
                            with_collision=True,
                            with_physics=True)
     factory.import_model()
     filename_from_path = os.path.basename(mjcf_filename).split(".")[0]
     urdf_filename = os.path.join(multiverse_resources, "cached", f"{filename_from_path}.urdf")
-    # urdf_filename = pathlib.Path(os.path.join(os.path.dirname(__file__),
-    #                                           "../../../resources/cached", f"{filename_from_path}.urdf")).resolve()
     mjcf_exporter = UrdfExporter(factory=factory, file_path=str(urdf_filename))
     mjcf_exporter.build()
     mjcf_exporter.export(keep_usd=False)
