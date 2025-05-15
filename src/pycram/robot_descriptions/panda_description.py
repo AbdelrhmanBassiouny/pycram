@@ -2,7 +2,7 @@ import math
 import os
 
 import pathlib
-from tf.transformations import quaternion_from_euler
+from ..tf_transformations import quaternion_from_euler
 
 from ..datastructures.dataclasses import ManipulatorData
 from ..datastructures.enums import Grasp, Arms
