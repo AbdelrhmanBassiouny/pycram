@@ -128,11 +128,11 @@ class ActionDescription(HasParameters):
     """
     The performable designator_description with a single element for each list of possible parameter.
     """
-    robot_position: Optional[PoseStamped] = field(init=False)
+    robot_position: PoseStamped = field(init=False)
     """
     The position of the robot at the start of the action.
     """
-    robot_torso_height: Optional[float] = field(init=False)
+    robot_torso_height: float = field(init=False)
     """
     The torso height of the robot at the start of the action.
     """
@@ -316,6 +316,11 @@ class ObjectDesignatorDescription(DesignatorDescription, PartialDesignator):
 
                 # yield self.Object(obj.name, obj.obj_type, obj)
                 yield obj
+
+    def flatten(self) -> List:
+        res = [None] * 7
+        res.append(self.types[0])
+        return res
 
 
 @dataclass
