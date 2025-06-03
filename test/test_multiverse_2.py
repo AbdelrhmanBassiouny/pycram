@@ -5,13 +5,12 @@ import numpy as np
 
 from pycram.datastructures.enums import LoggerLevel
 from pycram.robot_description import RobotDescriptionManager
-from pycram.ros import set_logger_level
+from pycram.ros import set_logger_level, logwarn
 
-set_logger_level(LoggerLevel.DEBUG)
 from pycram.tf_transformations import quaternion_from_euler, quaternion_multiply
 from typing_extensions import Optional, List
 
-from pycram import World
+from pycram.datastructures.world import World
 from pycram.datastructures.dataclasses import Color, AxisAlignedBoundingBox, ContactPointsList, ContactPoint
 from pycram.datastructures.enums import Arms, JointType, WorldMode
 from pycram.datastructures.pose import Pose, PoseStamped, Vector3, Quaternion, Header
@@ -23,33 +22,31 @@ from pycrap.ontologies import Bowl, PhysicalObject, Apartment, Robot, Cup, Milk,
 
 multiverse_installed = True
 
-# try:
-from pycram.worlds.multiverse2 import Multiverse
+try:
+    from pycram.worlds.multiverse2 import Multiverse
+except ImportError as e:
+    logwarn(f"Multiverse is not installed. Skipping tests that require it. Error: {e}")
+    Multiverse = None
+    multiverse_installed = False
 
 
-# except ImportError as e:
-#     logwarn(f"Multiverse is not installed. Skipping tests that require it. Error: {e}")
-#     Multiverse = None
-#     multiverse_installed = False
-
-
-# @unittest.skipIf(not multiverse_installed, "Multiverse is not installed.")
-# @unittest.skip
+@unittest.skipIf(not multiverse_installed, "Multiverse is not installed.")
 class TestMultiverse(unittest.TestCase):
-    # if multiverse_installed:
-    multiverse: Multiverse
+    if multiverse_installed:
+        multiverse: Multiverse
     big_bowl: Optional[Object] = None
 
     @classmethod
     def setUpClass(cls):
-        # if not multiverse_installed:
-        #     return
+        if not multiverse_installed:
+            return
         resources_path = find_multiverse_resources_path()
         example_scene_path = os.path.join(resources_path,
                                           "mjcf/mujoco_menagerie/franka_emika_panda/mjx_single_cube.xml")
         cls.multiverse = Multiverse(scene_file_path=example_scene_path,
                                     mode=WorldMode.GUI,
                                     prospection_mode=WorldMode.DIRECT)
+        set_logger_level(LoggerLevel.DEBUG)
 
     @classmethod
     def tearDownClass(cls):
