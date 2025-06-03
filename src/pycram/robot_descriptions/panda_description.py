@@ -8,7 +8,7 @@ from ..datastructures.dataclasses import ManipulatorData
 from ..datastructures.enums import Grasp, Arms
 from ..helper import get_robot_urdf_and_mjcf_file_paths, find_multiverse_resources_path
 from ..robot_description import RobotDescriptionManager, create_manipulator_description
-from ..ros import logwarn
+from ..ros import logwarn, loginfo
 from ..units import meter
 from ..config.world_conf import WorldConfig
 
@@ -41,6 +41,7 @@ if multiverse_resources is not None:
 if urdf_filename is None and mjcf_filename is not None:
     from multiverse_parser import MjcfImporter, UrdfExporter
 
+if mjcf_filename is None or urdf_filename is None:
     factory = MjcfImporter(file_path=mjcf_filename,
                            fixed_base=True,
                            root_name=data.base_link,

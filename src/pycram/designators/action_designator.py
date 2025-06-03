@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import abc
 import inspect
+import math
 from dataclasses import dataclass, field
 from datetime import timedelta
 from functools import cached_property
@@ -665,6 +666,13 @@ class TransportAction(ActionDescription):
     """
     Arm that should be used
     """
+
+    object_at_execution: Optional[FrozenObject] = field(init=False, repr=False, default=None)
+    """
+    The object at the time this Action got created. It is used to be a static, information holding entity. It is
+    not updated when the BulletWorld object is changed.
+    """
+
     _pre_perform_callbacks = []
     """
     List to save the callbacks which should be called before performing the action.
@@ -678,7 +686,7 @@ class TransportAction(ActionDescription):
 
     def plan(self) -> None:
         robot_desig_resolved = BelieveObject(names=[RobotDescription.current_robot_description.name]).resolve()
-        ParkArmsAction(Arms.BOTH).perform()
+        ParkArmsActionDescription(Arms.BOTH).perform()
         pickup_loc = CostmapLocation(target=self.object_designator,
                                      reachable_for=robot_desig_resolved,
                                      reachable_arm=[self.arm])
@@ -688,10 +696,10 @@ class TransportAction(ActionDescription):
             raise ObjectUnfetchable(
                 f"Found no pose for the robot to grasp the object: {self.object_designator} with arm: {self.arm}")
 
-        NavigateAction(pickup_pose, True).perform()
-        PickUpAction(self.object_designator, pickup_pose.arm,
+        NavigateActionDescription(pickup_pose, True).perform()
+        PickUpActionDescription(self.object_designator, pickup_pose.arm,
                      grasp_description=pickup_pose.grasp_description).perform()
-        ParkArmsAction(Arms.BOTH).perform()
+        ParkArmsActionDescription(Arms.BOTH).perform()
         try:
             place_loc = CostmapLocation(
                 target=self.target_location,
@@ -703,9 +711,9 @@ class TransportAction(ActionDescription):
         except StopIteration:
             raise ReachabilityFailure(
                 f"No location found from where the robot can reach the target location: {self.target_location}")
-        NavigateAction(place_loc, True).perform()
-        PlaceAction(self.object_designator, self.target_location, self.arm).perform()
-        ParkArmsAction(Arms.BOTH).perform()
+        NavigateActionDescription(place_loc, True).perform()
+        PlaceActionDescription(self.object_designator, self.target_location, self.arm).perform()
+        ParkArmsActionDescription(Arms.BOTH).perform()
 
     def validate(self, result: Optional[Any] = None, max_wait_time: Optional[timedelta] = None):
         # The validation of each atomic action is done in the action itself, so no more validation needed here.
@@ -771,7 +779,7 @@ class DetectAction(ActionDescription):
     """
     The technique that should be used for detection
     """
-    state: DetectionState = None
+    state: Optional[DetectionState] = None
     """
     The state of the detection, e.g Start Stop for continues perception
     """
@@ -779,15 +787,15 @@ class DetectAction(ActionDescription):
     """
     The type of the object that should be detected, only considered if technique is equal to Type
     """
-    region: Location = None
+    region: Optional[Location] = None
     """
     The region in which the object should be detected
     """
 
-    object_at_execution: Optional[FrozenObject] = field(init=False)
-    """
-    The object at the time this Action got created. It is used to be a static, information holding entity
-    """
+    # object_at_execution: Optional[FrozenObject] = field(init=False, repr=False, default=None)
+    # """
+    # The object at the time this Action got created. It is used to be a static, information holding entity
+    # """
 
     _pre_perform_callbacks = []
     """
@@ -797,8 +805,8 @@ class DetectAction(ActionDescription):
     def __post_init__(self):
         super().__post_init__()
 
-        # Store the object's data copy at execution
-        self.pre_perform(record_object_pre_perform)
+        # # Store the object's data copy at execution
+        # self.pre_perform(record_object_pre_perform)
 
     def plan(self) -> None:
         return try_action(DetectingMotion(technique=self.technique, state=self.state,
@@ -806,8 +814,9 @@ class DetectAction(ActionDescription):
                                           region=self.region), PerceptionObjectNotFound)
 
     def validate(self, result: Optional[Any] = None, max_wait_time: Optional[timedelta] = None):
-        if not result:
-            raise PerceptionObjectNotFound(self.object_designator, self.technique, self.region)
+        return
+        # if not result:
+        #     raise PerceptionObjectNotFound(self.object_designator, self.technique, self.region)
 
     @classmethod
     @with_plan
@@ -950,7 +959,7 @@ class GraspingAction(ActionDescription):
     """
     Grasps an object described by the given Object Designator description
     """
-    object_designator: Union[Object, ObjectDescription.Link]
+    object_designator: Object# Union[Object, ObjectDescription.Link]
     """
     Object Designator for the object that should be grasped
     """
@@ -1066,7 +1075,7 @@ class MoveAndPickUpAction(ActionDescription):
     The arm to use
     """
 
-    grasp: Grasp
+    grasp_description: GraspDescription
     """
     The grasp to use
     """
@@ -1076,14 +1085,27 @@ class MoveAndPickUpAction(ActionDescription):
     Keep the joint states of the robot the same during the navigation.
     """
 
+    object_at_execution: Optional[FrozenObject] = field(init=False, repr=False, default=None)
+    """
+    The object at the time this Action got created. It is used to be a static, information holding entity. It is
+    not updated when the BulletWorld object is changed.
+    """
+
+    _pre_perform_callbacks = []
+    """
+    List to save the callbacks which should be called before performing the action.
+    """
+
+    def __post_init__(self):
+        super().__post_init__()
+
+        # Store the object's data copy at execution
+        self.pre_perform(record_object_pre_perform)
+
     def plan(self):
-        if self.grasp == Grasp.TOP:
-            grasp = GraspDescription(Grasp.FRONT, self.grasp, False)
-        else:
-            grasp = GraspDescription(self.grasp, None, False)
         NavigateAction(self.standing_position, self.keep_joint_states).perform()
         FaceAtAction(self.object_designator.pose, self.keep_joint_states).perform()
-        PickUpAction(self.object_designator, self.arm, grasp).perform()
+        PickUpAction(self.object_designator, self.arm, self.grasp_description).perform()
 
     def validate(self, result: Optional[Any] = None, max_wait_time: Optional[timedelta] = None):
         # The validation will be done in each of the atomic action perform methods so no need to validate here.
@@ -1094,15 +1116,15 @@ class MoveAndPickUpAction(ActionDescription):
     def description(cls, standing_position: Union[Iterable[PoseStamped], PoseStamped],
                     object_designator: Union[Iterable[PoseStamped], PoseStamped],
                     arm: Union[Iterable[Arms], Arms] = None,
-                    grasp: Union[Iterable[Grasp], Grasp] = None,
+                    grasp_description: Union[Iterable[Grasp], Grasp] = None,
                     keep_joint_states: Union[Iterable[bool], bool] = ActionConfig.navigate_keep_joint_states) -> \
             PartialDesignator[Type[MoveAndPickUpAction]]:
         return PartialDesignator(MoveAndPickUpAction,
                                  standing_position=standing_position,
                                  object_designator=object_designator,
                                  arm=arm,
-                                 grasp=grasp)
-
+                                 grasp_description=grasp_description,
+                                 keep_joint_states=keep_joint_states)
 
 @has_parameters
 @dataclass
@@ -1158,86 +1180,6 @@ class MoveAndPlaceAction(ActionDescription):
                                  object_designator=object_designator,
                                  target_location=target_location,
                                  arm=arm)
-
-
-@has_parameters
-@dataclass
-class PouringAction(ActionDescription):
-    """
-    Action class for the Pouring action.
-    """
-
-    object_: ObjectDesignatorDescription
-    """
-    The object to be poured into.
-    """
-
-    tool: ObjectDesignatorDescription
-    """
-    The tool used for pouring.
-    """
-
-    arm: Arms
-    """
-    The robot arm designated for the pouring task.
-    """
-
-    technique: Optional[str] = None
-    """
-    The technique used for pouring (default is None).
-    """
-
-    angle: Optional[float] = 90
-    """
-    The angle of the pouring action (default is 90).
-    """
-
-    def plan(self) -> None:
-        lt = LocalTransformer()
-        movement_type: MovementType = MovementType.CARTESIAN
-        oTm = self.object_.pose
-        grasp_rotation = RobotDescription.current_robot_description.get_arm_chain(self.arm).end_effector.get_grasp(
-            Grasp.FRONT, None, False)
-        oTbs = lt.transform_pose(oTm, World.robot.get_link_tf_frame("base_link"))
-        oTbs.pose.position.x += 0.009
-        oTbs.pose.position.z += 0.17
-        oTbs.pose.position.y -= 0.125
-
-        oTms = lt.transform_pose(oTbs, "map")
-        World.current_world.add_vis_axis(oTms)
-        oTog = lt.transform_pose(oTms, World.robot.get_link_tf_frame("base_link"))
-        oTog.orientation = grasp_rotation
-        oTgm = lt.transform_pose(oTog, "map")
-
-        MoveTCPMotion(oTgm, self.arm, allow_gripper_collision=False, movement_type=movement_type).perform()
-
-        World.current_world.add_vis_axis(oTgm)
-
-        adjusted_oTgm = oTgm.copy()
-        new_q = utils.axis_angle_to_quaternion([1, 0, 0], self.angle)
-        new_x = new_q[0]
-        new_y = new_q[1]
-        new_z = new_q[2]
-        new_w = new_q[3]
-        adjusted_oTgm.rotate_by_quaternion([new_x, new_y, new_z, new_w])
-
-        World.current_world.add_vis_axis(adjusted_oTgm)
-        MoveTCPMotion(adjusted_oTgm, self.arm, allow_gripper_collision=False, movement_type=movement_type).perform()
-        sleep(3)
-        MoveTCPMotion(oTgm, self.arm, allow_gripper_collision=False, movement_type=movement_type).perform()
-
-    def validate(self, result: Optional[Any] = None, max_wait_time: Optional[timedelta] = None):
-        # The validation will be done in each of the atomic action perform methods so no need to validate here.
-        pass
-
-    @classmethod
-    @with_plan
-    def description(cls, object: Union[Iterable[Object], Object],
-                    tool: Union[Iterable[Object], Object],
-                    arm: Optional[Union[Iterable[Arms], Arms]] = None,
-                    technique: Optional[Union[Iterable[str], str]] = None,
-                    angle: Optional[Union[Iterable[float], float]] = 90) -> PartialDesignator[Type[PouringAction]]:
-        return PartialDesignator(PouringAction, object=object, tool=tool, arm=arm, technique=technique, angle=angle)
 
 
 @has_parameters
@@ -1315,5 +1257,4 @@ MoveAndPickUpActionDescription = MoveAndPickUpAction.description
 MoveAndPlaceActionDescription = MoveAndPlaceAction.description
 ReleaseActionDescription = ReleaseAction.description
 GripActionDescription = GripAction.description
-PouringActionDescription = PouringAction.description
 SearchActionDescription = SearchAction.description

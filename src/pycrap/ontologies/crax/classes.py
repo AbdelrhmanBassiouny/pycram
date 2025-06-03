@@ -43,13 +43,15 @@ class Kitchen(Base):
     """
 
 
-class PouringTool(Base):
-    """
-    The Tool that is used for pouring, can be cup, bottle, etc.
-    """
-
-
 class Food(Base):
+    ...
+
+
+class Fruit(Food):
+    ...
+
+
+class Apple(Fruit):
     ...
 
 
@@ -139,6 +141,24 @@ class Link(Base):
 
 class PhysicalObject(Base):
     ...
+
+
+class PouringTool(PhysicalObject):
+    """
+    The Tool that is used for pouring, can be cup, bottle, etc.
+    """
+
+
+class CuttingTool(PhysicalObject):
+    """
+    The tool used for cutting — such as a knife, bread-knife, or similar — depends on the specific task and object being processed.
+    """
+
+
+class MixingTool(PhysicalObject):
+    """
+    The tool used for mixing — such as a Spoon, Whisk, or similar — depends on the specific task and object being processed.
+    """
 
 
 class Agent(Base):
