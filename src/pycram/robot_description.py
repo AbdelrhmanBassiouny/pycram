@@ -11,6 +11,7 @@ from enum import Enum
 from itertools import product
 
 import numpy as np
+import tf2_ros
 from scipy.spatial.transform import Rotation as R
 from typing_extensions import List, Dict, Union, Optional, Tuple, TYPE_CHECKING
 
@@ -840,7 +841,7 @@ class EndEffectorDescription:
         Traverses the URDF object to get all links and joints of the end effector below the start link.1
         """
         start_link_obj = self.urdf_object.link_map[self.start_link]
-        links = [link.name for link in self.urdf_object.links]
+        links = [self.start_link]
         while len(links) != 0:
             link = links.pop()
             self.link_names.append(link)

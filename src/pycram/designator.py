@@ -248,8 +248,9 @@ class ActionDescription(HasParameters):
 
     def _update_robot_params(self, action: ActionDescription):
         action.robot_position = World.robot.pose
-        action.robot_torso_height = World.robot.get_joint_position(
-            RobotDescription.current_robot_description.torso_joint)
+        if RobotDescription.current_robot_description.torso_joint != '':
+            action.robot_torso_height = World.robot.get_joint_position(
+                RobotDescription.current_robot_description.torso_joint)
         action.robot_type = World.robot.obj_type
 
 

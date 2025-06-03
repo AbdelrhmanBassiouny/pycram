@@ -40,8 +40,6 @@ if multiverse_resources is not None:
                                                                       multiverse_resources=multiverse_resources)
 if urdf_filename is None and mjcf_filename is not None:
     from multiverse_parser import MjcfImporter, UrdfExporter
-
-if mjcf_filename is None or urdf_filename is None:
     factory = MjcfImporter(file_path=mjcf_filename,
                            fixed_base=True,
                            root_name=data.base_link,

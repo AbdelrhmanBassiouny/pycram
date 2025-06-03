@@ -3,8 +3,10 @@ import unittest
 
 import numpy as np
 
-from pycram.datastructures.enums import LoggerLevel
-from pycram.robot_description import RobotDescriptionManager
+from pycram.datastructures.enums import LoggerLevel, GripperState
+from pycram.designators.action_designator import SetGripperActionDescription
+from pycram.process_module import simulated_robot
+from pycram.robot_description import RobotDescriptionManager, RobotDescription
 from pycram.ros import set_logger_level, logwarn
 
 from pycram.tf_transformations import quaternion_from_euler, quaternion_multiply
@@ -33,7 +35,7 @@ except ImportError as e:
 @unittest.skipIf(not multiverse_installed, "Multiverse is not installed.")
 class TestMultiverse(unittest.TestCase):
     if multiverse_installed:
-        multiverse: Multiverse
+        world: Multiverse
     big_bowl: Optional[Object] = None
 
     @classmethod
@@ -43,22 +45,37 @@ class TestMultiverse(unittest.TestCase):
         resources_path = find_multiverse_resources_path()
         example_scene_path = os.path.join(resources_path,
                                           "mjcf/mujoco_menagerie/franka_emika_panda/mjx_single_cube.xml")
-        cls.multiverse = Multiverse(scene_file_path=example_scene_path,
+        cls.world = Multiverse(scene_file_path=example_scene_path,
                                     mode=WorldMode.GUI,
                                     prospection_mode=WorldMode.DIRECT)
         set_logger_level(LoggerLevel.DEBUG)
 
     @classmethod
     def tearDownClass(cls):
-        cls.multiverse.exit(remove_saved_states=True)
-        cls.multiverse.remove_multiverse_resources()
+        cls.world.exit(remove_saved_states=True)
+        cls.world.remove_multiverse_resources()
 
     def tearDown(self):
-        self.multiverse.remove_all_objects()
+        self.world.remove_all_objects()
         pass
 
+    def test_set_gripper(self):
+        if self.world.robot is None:
+            robot = self.spawn_robot(robot_name="panda")
+        else:
+            robot = self.world.robot
+        description = SetGripperActionDescription([Arms.RIGHT], [GripperState.OPEN, GripperState.CLOSE])
+        self.assertEqual(description.resolve().gripper, Arms.RIGHT)
+        self.assertEqual(description.resolve().motion, GripperState.OPEN)
+        # self.assertEqual(len(list(iter(description))), 2)
+        with simulated_robot:
+            description.resolve().perform()
+        for joint, state in RobotDescription.current_robot_description.get_arm_chain(
+                Arms.RIGHT).get_static_gripper_state(GripperState.OPEN).items():
+            self.assertAlmostEqual(self.world.robot.get_joint_position(joint), state, delta=0.001)
+
     def test_init_multiverse(self):
-        self.assertIsInstance(self.multiverse, Multiverse)
+        self.assertIsInstance(self.world, Multiverse)
 
     @unittest.skip
     def test_load_generic_object(self):
@@ -66,7 +83,7 @@ class TestMultiverse(unittest.TestCase):
                                             color=Color(1, 0, 0, 1))
         obj = Object(obj_desc.name, PhysicalObject, description=obj_desc)
         self.assertIsInstance(obj, Object)
-        self.assertTrue(obj in self.multiverse.objects)
+        self.assertTrue(obj in self.world.objects)
         obj.set_position([1, 1, 0.1])
         pose = obj.get_pose()
         self.assert_poses_are_equal(pose, PoseStamped(Pose(Vector3(1, 1, 0.1), Quaternion(0, 0, 0, 1))))
@@ -78,19 +95,19 @@ class TestMultiverse(unittest.TestCase):
         apartment = self.spawn_apartment()
         apartment.set_joint_position("cabinet10_drawer1_joint", 0.1)
         robot.attach(milk)
-        all_object_attachments = {obj: obj.attachments.copy() for obj in self.multiverse.objects}
-        state_id = self.multiverse.save_state()
+        all_object_attachments = {obj: obj.attachments.copy() for obj in self.world.objects}
+        state_id = self.world.save_state()
         robot_link = robot.root_link
         milk_link = milk.root_link
         cid = robot_link.constraint_ids[milk_link]
         self.assertTrue(cid == robot.attachments[milk].id)
-        self.multiverse.remove_constraint(cid)
+        self.world.remove_constraint(cid)
         apartment.set_joint_position("cabinet10_drawer1_joint", 0.0)
-        self.multiverse.restore_state(state_id)
+        self.world.restore_state(state_id)
         cid = robot_link.constraint_ids[milk_link]
         self.assertTrue(milk_link in robot_link.constraint_ids)
         self.assertTrue(cid == robot.attachments[milk].id)
-        for obj in self.multiverse.objects:
+        for obj in self.world.objects:
             self.assertTrue(len(obj.attachments) == len(all_object_attachments[obj]))
             for att in obj.attachments:
                 self.assertTrue(att in all_object_attachments[obj])
@@ -133,7 +150,7 @@ class TestMultiverse(unittest.TestCase):
     def test_spawn_mesh_object(self):
         milk = Object("milk", Milk, "milk.stl", pose=PoseStamped(Pose(Vector3(1, 1, 0.1))))
         self.assert_poses_are_equal(milk.get_pose(), PoseStamped(Pose(Vector3(1, 1, 0.1))))
-        self.multiverse.simulate(0.2)
+        self.world.simulate(0.2)
         contact_points = milk.contact_points
         self.assertTrue(len(contact_points) > 0)
 
@@ -158,15 +175,15 @@ class TestMultiverse(unittest.TestCase):
     @unittest.skip
     def test_get_images_for_target(self):
         robot = self.spawn_robot(robot_name='pr2')
-        camera_description = self.multiverse.robot_description.get_default_camera()
+        camera_description = self.world.robot_description.get_default_camera()
         camera_link_name = camera_description.link_name
         camera_pose = robot.get_link_pose(camera_link_name)
-        camera_frame = self.multiverse.robot_description.get_camera_frame(robot.name)
+        camera_frame = self.world.robot_description.get_camera_frame(robot.name)
         camera_front_facing_axis = camera_description.front_facing_axis
         milk_spawn_position = np.array(camera_front_facing_axis) * 0.5
         orientation = (~camera_pose.to_transform_stamped(camera_frame)).rotation.to_list()
         milk = self.spawn_milk(milk_spawn_position.tolist(), orientation, frame=camera_frame)
-        _, depth, segmentation_mask = self.multiverse.get_images_for_target(milk.pose, camera_pose, plot=False)
+        _, depth, segmentation_mask = self.world.get_images_for_target(milk.pose, camera_pose, plot=False)
         self.assertIsInstance(depth, np.ndarray)
         self.assertIsInstance(segmentation_mask, np.ndarray)
         self.assertTrue(depth.shape == (256, 256))
@@ -181,12 +198,12 @@ class TestMultiverse(unittest.TestCase):
         milk = self.spawn_milk(set_position)
         milk.set_position(set_position)
         milk_position = milk.get_position_as_list()
-        self.assert_list_is_equal(milk_position[:2], set_position[:2], delta=self.multiverse.conf.position_tolerance)
-        self.multiverse.reset_world()
+        self.assert_list_is_equal(milk_position[:2], set_position[:2], delta=self.world.conf.position_tolerance)
+        self.world.reset_world()
         milk_pose = milk.get_pose()
         self.assert_list_is_equal(milk_pose.position.to_list()[:2],
                                   milk.original_pose.position_as_list()[:2],
-                                  delta=self.multiverse.conf.position_tolerance)
+                                  delta=self.world.conf.position_tolerance)
         self.assert_orientation_is_equal(milk_pose.orientation.to_list(), milk.original_pose.orientation_as_list())
 
     @unittest.skip
@@ -195,20 +212,20 @@ class TestMultiverse(unittest.TestCase):
         self.assertIsInstance(milk, Object)
         milk_pose = milk.get_pose()
         self.assert_list_is_equal(milk_pose.position.to_list()[:2], [1, 1],
-                                  delta=self.multiverse.conf.position_tolerance)
+                                  delta=self.world.conf.position_tolerance)
         self.assert_orientation_is_equal(milk_pose.orientation.to_list(), milk.original_pose.orientation_as_list())
 
     @unittest.skip
     def test_remove_object(self):
         milk = self.spawn_milk([1, 1, 0.1])
         milk.remove()
-        self.assertTrue(milk not in self.multiverse.objects)
-        self.assertFalse(self.multiverse.check_object_exists(milk))
+        self.assertTrue(milk not in self.world.objects)
+        self.assertFalse(self.world.check_object_exists(milk))
 
     @unittest.skip
     def test_check_object_exists(self):
         milk = self.spawn_milk([1, 1, 0.1])
-        self.assertTrue(self.multiverse.check_object_exists(milk))
+        self.assertTrue(self.world.check_object_exists(milk))
 
     def test_set_position(self):
         box = self.spawn_box()
@@ -217,58 +234,58 @@ class TestMultiverse(unittest.TestCase):
         box.set_position(original_position)
         box_position = box.get_position_as_list()
         self.assert_list_is_equal(box_position[:2], original_position[:2],
-                                  delta=self.multiverse.conf.position_tolerance)
+                                  delta=self.world.conf.position_tolerance)
 
     @unittest.skip
     def test_update_position(self):
         milk = self.spawn_milk([1, 1, 0.1])
         milk_position = milk.get_position_as_list()
-        self.assert_list_is_equal(milk_position[:2], [1, 1], delta=self.multiverse.conf.position_tolerance)
+        self.assert_list_is_equal(milk_position[:2], [1, 1], delta=self.world.conf.position_tolerance)
 
     def test_set_joint_position(self):
-        if self.multiverse.robot is None:
+        if self.world.robot is None:
             robot = self.spawn_robot(robot_name="panda")
         else:
-            robot = self.multiverse.robot
+            robot = self.world.robot
         step = 0.2
         for joint in ['joint1']:
             joint_type = robot.joints[joint].type
             original_joint_position = robot.get_joint_position(joint)
             robot.set_joint_position(joint, original_joint_position + step)
             joint_position = robot.get_joint_position(joint)
-            if not self.multiverse.conf.use_controller:
-                delta = self.multiverse.conf.prismatic_joint_position_tolerance if joint_type == JointType.PRISMATIC \
-                    else self.multiverse.conf.revolute_joint_position_tolerance
+            if not self.world.conf.use_controller:
+                delta = self.world.conf.prismatic_joint_position_tolerance if joint_type == JointType.PRISMATIC \
+                    else self.world.conf.revolute_joint_position_tolerance
             else:
                 delta = 0.18
             self.assertAlmostEqual(joint_position, original_joint_position + step, delta=delta)
 
     @unittest.skip
     def test_spawn_robot(self):
-        if self.multiverse.robot is not None:
-            robot = self.multiverse.robot
+        if self.world.robot is not None:
+            robot = self.world.robot
         else:
             robot = self.spawn_robot(robot_name="pr2")
         self.assertIsInstance(robot, Object)
-        self.assertTrue(robot in self.multiverse.objects)
-        self.assertTrue(self.multiverse.robot.name == robot.name)
+        self.assertTrue(robot in self.world.objects)
+        self.assertTrue(self.world.robot.name == robot.name)
 
     @unittest.skip
     def test_destroy_robot(self):
-        if self.multiverse.robot is None:
+        if self.world.robot is None:
             self.spawn_robot()
-        self.assertTrue(self.multiverse.robot in self.multiverse.objects)
-        self.multiverse.robot.remove()
-        self.assertTrue(self.multiverse.robot not in self.multiverse.objects)
+        self.assertTrue(self.world.robot in self.world.objects)
+        self.world.robot.remove()
+        self.assertTrue(self.world.robot not in self.world.objects)
 
     @unittest.skip
     def test_respawn_robot(self):
         self.spawn_robot()
-        self.assertTrue(self.multiverse.robot in self.multiverse.objects)
-        self.multiverse.robot.remove()
-        self.assertTrue(self.multiverse.robot not in self.multiverse.objects)
+        self.assertTrue(self.world.robot in self.world.objects)
+        self.world.robot.remove()
+        self.assertTrue(self.world.robot not in self.world.objects)
         self.spawn_robot()
-        self.assertTrue(self.multiverse.robot in self.multiverse.objects)
+        self.assertTrue(self.world.robot in self.world.objects)
 
     @unittest.skip
     def test_set_robot_position(self):
@@ -276,24 +293,24 @@ class TestMultiverse(unittest.TestCase):
         for i in range(3):
             self.spawn_robot()
             new_position = [-3 + step * i, -3 + step * i, 0.001]
-            self.multiverse.robot.set_position(new_position)
-            robot_position = self.multiverse.robot.get_position_as_list()
+            self.world.robot.set_position(new_position)
+            robot_position = self.world.robot.get_position_as_list()
             self.assert_list_is_equal(robot_position[:2], new_position[:2],
-                                      delta=self.multiverse.conf.position_tolerance)
+                                      delta=self.world.conf.position_tolerance)
             self.tearDown()
 
     @unittest.skip
     def test_set_robot_orientation(self):
         self.spawn_robot()
         for i in range(3):
-            current_quaternion = self.multiverse.robot.get_orientation_as_list()
+            current_quaternion = self.world.robot.get_orientation_as_list()
             # rotate by 45 degrees without using euler angles
             rotation_quaternion = quaternion_from_euler(0, 0, np.pi / 4)
             new_quaternion = quaternion_multiply(current_quaternion, rotation_quaternion)
-            self.multiverse.robot.set_orientation(new_quaternion)
-            robot_orientation = self.multiverse.robot.get_orientation_as_list()
+            self.world.robot.set_orientation(new_quaternion)
+            robot_orientation = self.world.robot.get_orientation_as_list()
             quaternion_difference = calculate_angle_between_quaternions(new_quaternion, robot_orientation)
-            self.assertAlmostEqual(quaternion_difference, 0, delta=self.multiverse.conf.orientation_tolerance)
+            self.assertAlmostEqual(quaternion_difference, 0, delta=self.world.conf.orientation_tolerance)
 
     @unittest.skip
     def test_set_robot_pose(self):
@@ -301,10 +318,10 @@ class TestMultiverse(unittest.TestCase):
         position_step = -1
         angle_step = np.pi / 4
         num_steps = 10
-        self.step_robot_pose(self.multiverse.robot, position_step, angle_step, num_steps)
+        self.step_robot_pose(self.world.robot, position_step, angle_step, num_steps)
         position_step = 1
         angle_step = -np.pi / 4
-        self.step_robot_pose(self.multiverse.robot, position_step, angle_step, num_steps)
+        self.step_robot_pose(self.world.robot, position_step, angle_step, num_steps)
 
     @unittest.skip
     def step_robot_pose(self, robot, position_step, angle_step, num_steps):
@@ -316,18 +333,18 @@ class TestMultiverse(unittest.TestCase):
             rotation_quaternion = quaternion_from_euler(0, 0, angle_step * (i + 1))
             new_quaternion = quaternion_multiply(original_orientation, rotation_quaternion)
             new_pose = PoseStamped(Pose(Vector3(*new_position), Quaternion(*new_quaternion)))
-            self.multiverse.robot.set_pose(new_pose)
-            robot_pose = self.multiverse.robot.get_pose()
+            self.world.robot.set_pose(new_pose)
+            robot_pose = self.world.robot.get_pose()
             self.assert_poses_are_equal(new_pose, robot_pose,
-                                        position_delta=self.multiverse.conf.position_tolerance,
-                                        orientation_delta=self.multiverse.conf.orientation_tolerance)
+                                        position_delta=self.world.conf.position_tolerance,
+                                        orientation_delta=self.world.conf.orientation_tolerance)
 
     @unittest.skip
     def test_get_environment_pose(self):
-        if "apartment" not in self.multiverse.get_object_names():
+        if "apartment" not in self.world.get_object_names():
             apartment = Object("apartment", Apartment, f"apartment.urdf")
         else:
-            apartment = self.multiverse.get_object_by_name("apartment")
+            apartment = self.world.get_object_by_name("apartment")
         pose = apartment.get_pose()
         self.assertIsInstance(pose, Pose)
 
@@ -343,7 +360,7 @@ class TestMultiverse(unittest.TestCase):
             robot.set_joint_position("joint1", joint_position)
             new_box_position = robot.links["hand"].get_transform_to_link(box.root_link).translation.to_list()
             self.assert_list_is_equal(new_box_position[:2], estimated_box_position[:2],
-                                      self.multiverse.conf.position_tolerance)
+                                      self.world.conf.position_tolerance)
 
             robot.detach(box)
             self.assertTrue(box not in robot.attachments)
@@ -353,8 +370,8 @@ class TestMultiverse(unittest.TestCase):
             robot.set_joint_position("joint1", joint_position)
             box_pose_after = box.get_pose()
             self.assert_poses_are_equal(box_pose_before, box_pose_after,
-                                        position_delta=self.multiverse.conf.position_tolerance,
-                                        orientation_delta=self.multiverse.conf.orientation_tolerance)
+                                        position_delta=self.world.conf.position_tolerance,
+                                        orientation_delta=self.world.conf.orientation_tolerance)
             self.tearDown()
 
     @unittest.skip
@@ -374,16 +391,16 @@ class TestMultiverse(unittest.TestCase):
             new_milk_position = milk.get_position_as_list()
             new_cup_position = cup.get_position_as_list()
             self.assert_list_is_equal(new_milk_position[:2], milk_position[:2],
-                                      self.multiverse.conf.position_tolerance)
+                                      self.world.conf.position_tolerance)
             self.assert_list_is_equal(new_cup_position[:2], estimated_cup_position[:2],
-                                      self.multiverse.conf.position_tolerance)
+                                      self.world.conf.position_tolerance)
             self.tearDown()
 
     @unittest.skip
     def test_attach_with_robot(self):
         milk = self.spawn_milk([-1, -1, 0.1])
         robot = self.spawn_robot()
-        ee_link = self.multiverse.get_arm_tool_frame_link(Arms.RIGHT)
+        ee_link = self.world.get_arm_tool_frame_link(Arms.RIGHT)
         # Get position of milk relative to robot end effector
         robot.attach(milk, ee_link.name)
         self.assertTrue(robot in milk.attachments)
@@ -396,13 +413,13 @@ class TestMultiverse(unittest.TestCase):
     def test_get_object_contact_points(self):
         for i in range(1):
             box = self.spawn_box()
-            contact_points = self.multiverse.get_body_contact_points(box)
+            contact_points = self.world.get_body_contact_points(box)
             self.assertIsInstance(contact_points, ContactPointsList)
             self.assertTrue(len(contact_points) >= 1)
             self.assertIsInstance(contact_points[0], ContactPoint)
-            self.assertTrue(contact_points[0].body_b.object, self.multiverse.floor)
+            self.assertTrue(contact_points[0].body_b.object, self.world.floor)
             robot = self.spawn_robot(robot_name="panda")
-            contact_points = self.multiverse.get_body_contact_points(robot)
+            contact_points = self.world.get_body_contact_points(robot)
             self.assertIsInstance(contact_points, ContactPointsList)
             self.assertTrue(len(contact_points) == 0)
             # self.tearDown()
@@ -413,7 +430,7 @@ class TestMultiverse(unittest.TestCase):
         finger_position = robot.links["right_finger"].position.to_list()
         finger_position[2] -= 0.05
         box.set_position(finger_position)
-        contact_points = self.multiverse.get_contact_points_between_two_bodies(robot, box)
+        contact_points = self.world.get_contact_points_between_two_bodies(robot, box)
         self.assertTrue(len(contact_points) > 0)
 
     @unittest.skip("Probably not useful as this functionality may not be needed")
@@ -424,7 +441,7 @@ class TestMultiverse(unittest.TestCase):
         finger_position[2] -= 0.05
         box.set_position(finger_position)
         robot.attach(box, "right_finger")
-        contact_points = self.multiverse.get_contact_points_between_two_bodies(robot, box)
+        contact_points = self.world.get_contact_points_between_two_bodies(robot, box)
         self.assertTrue(len(contact_points))
 
     @unittest.skip
@@ -434,8 +451,8 @@ class TestMultiverse(unittest.TestCase):
             cup = self.spawn_cup([1, 1, 0.12])
             # This is needed because the cup is spawned in the air so it needs to fall
             # to get in contact with the milk
-            self.multiverse.simulate(0.4)
-            contact_points = self.multiverse.get_contact_points_between_two_bodies(milk, cup)
+            self.world.simulate(0.4)
+            contact_points = self.world.get_contact_points_between_two_bodies(milk, cup)
             self.assertIsInstance(contact_points, ContactPointsList)
             self.assertTrue(len(contact_points) >= 1)
             self.assertIsInstance(contact_points[0], ContactPoint)
@@ -444,12 +461,12 @@ class TestMultiverse(unittest.TestCase):
             self.tearDown()
 
     def test_get_one_ray(self):
-        self.multiverse.step()
+        self.world.step()
         box = self.spawn_box()
         box_position = box.get_position_as_list()
         ray_start = [box_position[0], box_position[1] + 1, box_position[2]]
         ray_end = [box_position[0], box_position[1] - 1, box_position[2]]
-        ray_result = self.multiverse.ray_test(ray_start, ray_end, calculate_distance=True)
+        ray_result = self.world.ray_test(ray_start, ray_end, calculate_distance=True)
         self.assertTrue(ray_result.intersected)
         self.assertEqual(ray_result.obj_id, box.id)
         self.assertEqual(ray_result.hit_position[0], box_position[0])
@@ -458,14 +475,14 @@ class TestMultiverse(unittest.TestCase):
         self.assertAlmostEqual(ray_result.hit_fraction, 0.5 - 0.02 / 2, delta=0.005)
 
     def test_get_rays(self):
-        self.multiverse.step()
+        self.world.step()
         box = self.spawn_box()
         box_position = box.get_position_as_list()
         ray_start_1 = [box_position[0] + 1, box_position[1], box_position[2]]
         ray_end_1 = [box_position[0] + 2, box_position[1], box_position[2]]
         ray_start_2 = [box_position[0], box_position[1] + 1, box_position[2]]
         ray_end_2 = [box_position[0], box_position[1] - 1, box_position[2]]
-        ray_results = self.multiverse.ray_test_batch([ray_start_1, ray_start_2],
+        ray_results = self.world.ray_test_batch([ray_start_1, ray_start_2],
                                                      [ray_end_1, ray_end_2])
         self.assertFalse(ray_results[0].intersected)
         self.assertTrue(ray_results[1].intersected and ray_results[1].obj_id == box.id)
@@ -495,10 +512,10 @@ class TestMultiverse(unittest.TestCase):
         return milk
 
     def spawn_apartment(self) -> Object:
-        if "apartment" not in self.multiverse.get_object_names():
+        if "apartment" not in self.world.get_object_names():
             apartment = Object("apartment", Apartment, f"apartment.urdf")
         else:
-            apartment = self.multiverse.get_object_by_name("apartment")
+            apartment = self.world.get_object_by_name("apartment")
         return apartment
 
     def spawn_robot(self, position: Optional[List[float]] = None,
@@ -511,14 +528,14 @@ class TestMultiverse(unittest.TestCase):
             position = [-2, -2, 0.001]
         if orientation is None:
             orientation = [0, 0, 0, 1]
-        if self.multiverse.robot is None or replace:
-            if self.multiverse.robot is not None:
-                if not self.multiverse.robot.remove():
-                    return self.multiverse.robot
+        if self.world.robot is None or replace:
+            if self.world.robot is not None:
+                if not self.world.robot.remove():
+                    return self.world.robot
             robot = Object(robot_name, Robot, f"{robot_name}.xml",
                            pose=PoseStamped(Pose(Vector3(*position), Quaternion(*orientation))))
         else:
-            robot = self.multiverse.robot
+            robot = self.world.robot
             robot.set_position(position)
         return robot
 
@@ -531,22 +548,22 @@ class TestMultiverse(unittest.TestCase):
     def assert_poses_are_equal(self, pose1: PoseStamped, pose2: PoseStamped,
                                position_delta: Optional[float] = None, orientation_delta: Optional[float] = None):
         if position_delta is None:
-            position_delta = self.multiverse.conf.position_tolerance
+            position_delta = self.world.conf.position_tolerance
         if orientation_delta is None:
-            orientation_delta = self.multiverse.conf.orientation_tolerance
+            orientation_delta = self.world.conf.orientation_tolerance
         self.assert_position_is_equal(pose1.position.to_list(), pose2.position.to_list(), delta=position_delta)
         self.assert_orientation_is_equal(pose1.orientation.to_list(), pose2.orientation.to_list(),
                                          delta=orientation_delta)
 
     def assert_position_is_equal(self, position1: List[float], position2: List[float], delta: Optional[float] = None):
         if delta is None:
-            delta = self.multiverse.conf.position_tolerance
+            delta = self.world.conf.position_tolerance
         self.assert_list_is_equal(position1, position2, delta=delta)
 
     def assert_orientation_is_equal(self, orientation1: List[float], orientation2: List[float],
                                     delta: Optional[float] = None):
         if delta is None:
-            delta = self.multiverse.conf.orientation_tolerance
+            delta = self.world.conf.orientation_tolerance
         self.assertAlmostEqual(calculate_angle_between_quaternions(orientation1, orientation2), 0, delta=delta)
 
     def assert_list_is_equal(self, list1: List, list2: List, delta: float):
