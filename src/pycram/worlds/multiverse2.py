@@ -424,7 +424,9 @@ class Multiverse(World):
         return contact_points_list.get_points_of_body(body)
 
     def get_contact_points_between_two_bodies(self, body_1: PhysicalBody, body_2: PhysicalBody) -> ContactPointsList:
-        contacts = self.simulator.get_contact_points(body_names=[body_1.name, body_2.name],
+        body_1_name = body_1.root_link.name if isinstance(body_1, Object) else body_1.name
+        body_2_name = body_2.root_link.name if isinstance(body_2, Object) else body_2.name
+        contacts = self.simulator.get_contact_points(body_names=[body_1_name, body_2_name],
                                                      including_children=True).result
         return self._contacts_to_contact_points_list(contacts)
 
@@ -518,12 +520,9 @@ class Multiverse(World):
         return results
 
     def get_link_given_object_and_link_names(self, object_name: str, link_name: str) -> Link:
-        object_name = "floor" if object_name == "world" else object_name
+        root_link_name = "planeLink" if object_name == "world" else object_name
         link_name = "planeLink" if link_name == "world" else link_name
-        if object_name in self.object_name_to_id:
-            obj = self.get_object_by_name(object_name)
-        else:
-            raise ObjectNotFound(object_name)
+        obj = self.get_object_by_root_link_name(root_link_name)
         if link_name in obj.links:
             return obj.links[link_name]
         else:

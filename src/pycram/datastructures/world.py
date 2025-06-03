@@ -397,6 +397,15 @@ class World(WorldEntity, ABC):
         """
         return [obj.name for obj in self.objects]
 
+    def get_object_by_root_link_name(self, name: str) -> Optional[Object]:
+        """
+        :return: the object with the given root link name.
+        """
+        objects_found = [obj for obj in self.objects if obj.root_link.name == name]
+        if len(objects_found) == 0:
+            raise ObjectNotFound(name)
+        return objects_found[0]
+
     def get_object_by_name(self, name: str) -> Optional[Object]:
         """
         Return the object with the given name. If there is no object with the given name, None is returned.
