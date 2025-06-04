@@ -1,11 +1,17 @@
 import datetime
 
 from typing_extensions import Type
+from urdf_parser_py.urdf import URDF
 
 from .world_conf import WorldConfig
 from pycram.description import ObjectDescription
 from pycram.helper import find_multiverse_resources_path
-from pycram.object_descriptors.mjcf import ObjectDescription as MJCF
+from ..ros import logwarn
+
+try:
+    from pycram.object_descriptors.mjcf import ObjectDescription as MJCF
+except ImportError:
+    MJCF = None
 
 
 class MultiverseConfig(WorldConfig):
@@ -28,7 +34,7 @@ class MultiverseConfig(WorldConfig):
     """
 
     # Multiverse Simulation Configuration
-    simulation_time_step: datetime.timedelta = datetime.timedelta(milliseconds=10)
+    simulation_time_step: datetime.timedelta = datetime.timedelta(milliseconds=1)
     simulation_frequency: int = int(1 / simulation_time_step.total_seconds())
     """
     The time step of the simulation in seconds and the frequency of the simulation in Hz.
@@ -52,7 +58,7 @@ class MultiverseConfig(WorldConfig):
     Only used when use_static_mode is False. This turns on the controller for the robot joints.
     """
 
-    default_description_type: Type[ObjectDescription] = MJCF
+    default_description_type: Type[ObjectDescription] = MJCF if MJCF is not None else URDF
     """
     The default description type for the objects.
     """
@@ -64,7 +70,7 @@ class MultiverseConfig(WorldConfig):
 
     validate_goals = True
 
-    clear_cache_at_start = True
+    clear_cache_at_start = False
 
     let_pycram_move_attached_objects = False
     let_pycram_handle_spawning = False

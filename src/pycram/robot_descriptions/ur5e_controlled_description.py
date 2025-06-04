@@ -5,8 +5,8 @@ from ..ros import  logwarn, loginfo
 
 data = ManipulatorData(
     name="ur5e",
-    relative_dir="universal_robot",
-    base_link="base_link",
+    relative_dir="universal_robots_ur5e",
+    base_link="base",
 
     arm_end_link="wrist_3_link",
     joint_names=['shoulder_pan_joint',
@@ -17,8 +17,9 @@ data = ManipulatorData(
                  'wrist_3_joint'],
     home_joint_values=[3.14, -1.56, 1.58, -1.57, -1.57, 0.0],
 
-    gripper_name="gripper-2F-85",
-    gripper_relative_dir="robotiq",
+    gripper_name="2f85",
+    gripper_start_link="base_mount",
+    gripper_relative_dir="robotiq_2f85",
     gripper_tool_frame="right_pad",
 
     gripper_joint_names=['right_driver_joint',

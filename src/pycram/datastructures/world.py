@@ -87,7 +87,7 @@ class World(WorldEntity, ABC):
     """
 
     def __init__(self, mode: WorldMode = WorldMode.DIRECT, is_prospection: bool = False, clear_cache: bool = False,
-                 id_: int = -1):
+                 prospection_mode: WorldMode = WorldMode.DIRECT, id_: int = -1, **kwargs):
         """
         Create a new simulation, the mode decides if the simulation should be a rendered window or just run in the
         background. There can only be one rendered simulation.
@@ -97,6 +97,7 @@ class World(WorldEntity, ABC):
          "GUI"
         :param is_prospection: For internal usage, decides if this World should be used as a prospection world.
         :param clear_cache: Whether to clear the cache directory.
+        :param prospection_mode: The mode of the prospection world.
         :param id_: The unique id of the world.
         """
         self.is_prospection_world: bool = is_prospection
@@ -107,6 +108,11 @@ class World(WorldEntity, ABC):
         WorldEntity.__init__(self, id_, self, concept=pycrap.ontologies.World)
 
         self.latest_state_id: Optional[int] = None
+        self.mode = mode
+        self.prospection_mode: WorldMode = prospection_mode
+        self.kwargs: Dict = kwargs
+        for key, value in kwargs.items():
+            setattr(self, key, value)
 
         if clear_cache or (self.conf.clear_cache_at_start and not self.cache_manager.cache_cleared):
             self.cache_manager.clear_cache()
@@ -321,7 +327,8 @@ class World(WorldEntity, ABC):
         if self.is_prospection_world:  # then no need to add another prospection world
             self.prospection_world = None
         else:
-            self.prospection_world: World = self.__class__(is_prospection=True)
+            self.prospection_world: World = self.__class__(is_prospection=True, mode=self.prospection_mode,
+                                                           **self.kwargs)
 
     def _sync_prospection_world(self):
         """
@@ -391,6 +398,15 @@ class World(WorldEntity, ABC):
         :return: A list of object names.
         """
         return [obj.name for obj in self.objects]
+
+    def get_object_by_root_link_name(self, name: str) -> Optional[Object]:
+        """
+        :return: the object with the given root link name.
+        """
+        objects_found = [obj for obj in self.objects if obj.root_link.name == name]
+        if len(objects_found) == 0:
+            raise ObjectNotFound(name)
+        return objects_found[0]
 
     def get_object_by_name(self, name: str) -> Optional[Object]:
         """

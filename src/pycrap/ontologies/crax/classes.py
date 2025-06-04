@@ -32,6 +32,10 @@ class Cereal(Base):
     A cereal box.
     """
 
+class Bread(Base):
+    """
+    A bread loaf.
+    """
 
 class Kitchen(Base):
     """

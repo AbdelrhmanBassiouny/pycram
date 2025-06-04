@@ -381,6 +381,17 @@ class ReachToPickUpAction(ActionDescription):
     def end_effector(self) -> EndEffectorDescription:
         return self.arm_chain.end_effector
 
+    # TODO find a way to use object_at_execution instead of object_designator in the automatic orm mapping in
+    #  ActionAbstract
+    def to_sql(self) -> ORMAction:
+        return ORMReachToPickUpAction(arm=self.arm, grasp=self.grasp, prepose_distance=self.prepose_distance)
+
+    def insert(self, session: Session, **kwargs) -> ORMAction:
+        action = super(ActionAbstract, self).insert(session)
+        action.object = self.object_at_execution.insert(session)
+        session.add(action)
+        return action
+
     def validate(self, result: Optional[Any] = None, max_wait_time: Optional[timedelta] = None):
         """
         Check if object is contained in the gripper such that it can be grasped and picked up.
@@ -469,12 +480,25 @@ class PickUpAction(ActionDescription):
         gripper_link = self.arm_chain.get_tool_frame()
         return World.robot.links[gripper_link].pose
 
+    # TODO find a way to use object_at_execution instead of object_designator in the automatic orm mapping in
+    #  ActionAbstract
+    def to_sql(self) -> ORMAction:
+        return ORMPickUpAction(arm=self.arm, grasp=self.grasp, prepose_distance=self.prepose_distance)
+
+    def insert(self, session: Session, **kwargs) -> ORMAction:
+        action = super(ActionAbstract, self).insert(session)
+        action.object = self.object_at_execution.insert(session)
+        session.add(action)
+        return action
+
     def validate(self, result: Optional[Any] = None, max_wait_time: Optional[timedelta] = None):
         """
         Check if picked up object is in contact with the gripper.
         """
-        if not has_gripper_grasped_body(self.arm, self.object_designator):
-            raise ObjectNotGraspedError(self.object_designator, World.robot, self.arm, self.grasp_description)
+        if not has_gripper_grasped_body(self.arm, self.world_object):
+            if self.world_object in World.robot.attachments:
+                World.robot.detach(self.world_object)
+            raise ObjectNotGraspedError(self.world_object, World.robot, self.arm, self.grasp)
 
     @cached_property
     def arm_chain(self) -> KinematicChainDescription:

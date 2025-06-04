@@ -27,8 +27,12 @@ from ..ros import logwarn, logerr, Time
 
 try:
     from ..object_descriptors.mjcf import ObjectDescription as MJCF
-except ImportError:
+    from multiverse_parser import MjcfImporter, UrdfExporter
+except ImportError as e:
+    logwarn(f"{e}, looks like the multiverse_parser package is not installed. ")
     MJCF = None
+    MjcfImporter = None
+    UrdfExporter = None
 from ..robot_description import RobotDescriptionManager, RobotDescription
 from ..world_concepts.constraints import Attachment
 from pycrap.ontologies import PhysicalObject, Joint, \
@@ -213,7 +217,24 @@ class Object(PhysicalBody, HasParameters):
         if path is None:
             raise ObjectDescriptionUndefined(self.name)
         extension = Path(path).suffix
-        if extension in self.extension_to_description_type:
+        if extension == ".xml":
+            filename_from_path = os.path.basename(path).split(".")[0]
+            urdf_filepath = os.path.join(self.world.cache_manager.cache_dir, f"{filename_from_path}.urdf")
+            if (not os.path.exists(urdf_filepath) and MjcfImporter is not None
+                    and UrdfExporter is not None):
+                factory = MjcfImporter(file_path=path,
+                                       fixed_base=True,
+                                       with_visual=True,
+                                       with_collision=True,
+                                       with_physics=True)
+                factory.import_model()
+                mjcf_exporter = UrdfExporter(factory=factory,
+                                             file_path=urdf_filepath)
+                mjcf_exporter.build()
+                mjcf_exporter.export(keep_usd=False)
+            self.description = URDF()
+            self.path = urdf_filepath
+        elif extension in self.extension_to_description_type:
             self.description = self.extension_to_description_type[extension]()
         elif extension in ObjectDescription.mesh_extensions:
             self.description = self.world.conf.default_description_type()

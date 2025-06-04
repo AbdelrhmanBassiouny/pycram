@@ -63,6 +63,10 @@ class ManipulatorData:
     """
     Name of the gripper at the end of the arm.
     """
+    gripper_start_link: str
+    """
+    Name of the gripper start link.
+    """
     gripper_tool_frame: str
     """
     Name of the frame of the gripper tool.
@@ -82,6 +86,14 @@ class ManipulatorData:
     opening_distance: float
     """
     The opening distance of the gripper.
+    """
+    transform_tool_frame_by: Optional[Transform] = None
+    """
+    A transformation to change where the tool frame is located.
+    """
+    transformed_frame_name: str = "gripper_tool_frame"
+    """
+    The name of the new transformed frame if 'transform_tool_frame_by' is not None.
     """
     fingers_link_names: Optional[List[str]] = None
     """
@@ -1260,7 +1272,8 @@ class ContactPointsList(list):
         :param body: An instance of the PhysicalBody class that represents the body that the points are related to.
         :return: A ContactPointsList instance that represents the contact points of the body.
         """
-        return ContactPointsList([point for point in self if body == point.body_b])
+        return ContactPointsList([point for point in self if body in [point.body_b, point.body_b.parent_entity,
+                                                                      point.body_a, point.body_a.parent_entity]])
 
     def get_objects_that_got_removed(self, previous_points: ContactPointsList) -> List[Object]:
         """
