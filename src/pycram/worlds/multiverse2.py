@@ -58,7 +58,8 @@ class Multiverse(World):
                  is_prospection: Optional[bool] = False,
                  clear_cache: bool = False,
                  prospection_mode: WorldMode = WorldMode.DIRECT,
-                 scene_file_path: Optional[str] = None):
+                 scene_file_path: Optional[str] = None,
+                 **conf_kwargs):
         """
         Initialize the Multiverse Socket and the PyCram World.
 
@@ -67,6 +68,10 @@ class Multiverse(World):
         :param prospection_mode: The mode of the prospection world.
         :param scene_file_path: The path to the scene file that needs to be loaded in the simulator.
         """
+
+        for key, value in conf_kwargs.items():
+            if value is not None:
+                setattr(self.conf, key, value)
 
         self.latest_save_id: Optional[int] = None
         self.saved_simulator_states: Dict = {}
@@ -82,7 +87,9 @@ class Multiverse(World):
         self.simulator = MultiverseMujocoConnector(file_path=scene_file_path,
                                                    headless=mode == WorldMode.DIRECT,
                                                    real_time_factor=1,
-                                                   step_size=self.conf.simulation_time_step.total_seconds())
+                                                   step_size=self.conf.simulator_config.step_size.total_seconds(),
+                                                   integrator=self.conf.simulator_config.integrator,
+                                                   cone=self.conf.simulator_config.cone)
         self.simulator.start(simulate_in_thread=False, render_in_thread=mode == WorldMode.GUI)
         self.simulator.step()
 

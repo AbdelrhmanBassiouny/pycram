@@ -1,6 +1,7 @@
 import datetime
+from dataclasses import dataclass
 
-from typing_extensions import Type
+from typing_extensions import Type, Optional
 from urdf_parser_py.urdf import URDF
 
 from .world_conf import WorldConfig
@@ -12,6 +13,22 @@ try:
     from pycram.object_descriptors.mjcf import ObjectDescription as MJCF
 except ImportError:
     MJCF = None
+
+
+@dataclass
+class SimulatorConfig:
+    step_size: datetime.timedelta
+    """
+    The time step of the simulation in seconds.
+    """
+    integrator: Optional[str] = None
+    """
+    The integrator to use for the simulation.
+    """
+    cone: Optional[str] = None
+    """
+    The cone to use for the simulation.
+    """
 
 
 class MultiverseConfig(WorldConfig):
@@ -38,6 +55,11 @@ class MultiverseConfig(WorldConfig):
     simulation_frequency: int = int(1 / simulation_time_step.total_seconds())
     """
     The time step of the simulation in seconds and the frequency of the simulation in Hz.
+    """
+
+    simulator_config: SimulatorConfig = SimulatorConfig(simulation_time_step)
+    """
+    The configuration of the simulator.
     """
 
     simulation_wait_time_factor: float = 1.0

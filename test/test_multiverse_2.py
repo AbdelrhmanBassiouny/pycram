@@ -2,22 +2,20 @@ import os
 import unittest
 
 import numpy as np
+from typing_extensions import Optional, List
 
+from pycram.datastructures.dataclasses import Color, AxisAlignedBoundingBox, ContactPointsList, ContactPoint
+from pycram.datastructures.enums import Arms, JointType, WorldMode
 from pycram.datastructures.enums import LoggerLevel, GripperState
+from pycram.datastructures.pose import Pose, PoseStamped, Vector3, Quaternion, Header
+from pycram.datastructures.world import World
 from pycram.designators.action_designator import SetGripperActionDescription
+from pycram.helper import get_robot_description_path, parse_mjcf_actuators, find_multiverse_resources_path
+from pycram.object_descriptors.generic import ObjectDescription as GenericObjectDescription
 from pycram.process_module import simulated_robot
 from pycram.robot_description import RobotDescriptionManager, RobotDescription
 from pycram.ros import set_logger_level, logwarn
-
 from pycram.tf_transformations import quaternion_from_euler, quaternion_multiply
-from typing_extensions import Optional, List
-
-from pycram.datastructures.world import World
-from pycram.datastructures.dataclasses import Color, AxisAlignedBoundingBox, ContactPointsList, ContactPoint
-from pycram.datastructures.enums import Arms, JointType, WorldMode
-from pycram.datastructures.pose import Pose, PoseStamped, Vector3, Quaternion, Header
-from pycram.helper import get_robot_description_path, parse_mjcf_actuators, find_multiverse_resources_path
-from pycram.object_descriptors.generic import ObjectDescription as GenericObjectDescription
 from pycram.validation.error_checkers import calculate_angle_between_quaternions
 from pycram.world_concepts.world_object import Object
 from pycrap.ontologies import Bowl, PhysicalObject, Apartment, Robot, Cup, Milk, Bread
@@ -45,9 +43,10 @@ class TestMultiverse(unittest.TestCase):
         resources_path = find_multiverse_resources_path()
         example_scene_path = os.path.join(resources_path,
                                           "mjcf/mujoco_menagerie/franka_emika_panda/mjx_single_cube.xml")
+        # example_scene_path = "/home/bassioun/Documents/python_projects/Segmind/resources/multiverse_episodes/icub_montessori_no_hands/model/iCub_with_montessori_toys_2.xml"
         cls.world = Multiverse(scene_file_path=example_scene_path,
-                                    mode=WorldMode.GUI,
-                                    prospection_mode=WorldMode.DIRECT)
+                               mode=WorldMode.GUI,
+                               prospection_mode=WorldMode.DIRECT)
         set_logger_level(LoggerLevel.DEBUG)
 
     @classmethod
@@ -483,7 +482,7 @@ class TestMultiverse(unittest.TestCase):
         ray_start_2 = [box_position[0], box_position[1] + 1, box_position[2]]
         ray_end_2 = [box_position[0], box_position[1] - 1, box_position[2]]
         ray_results = self.world.ray_test_batch([ray_start_1, ray_start_2],
-                                                     [ray_end_1, ray_end_2])
+                                                [ray_end_1, ray_end_2])
         self.assertFalse(ray_results[0].intersected)
         self.assertTrue(ray_results[1].intersected and ray_results[1].obj_id == box.id)
 
