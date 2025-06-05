@@ -5,6 +5,12 @@ from enum import Enum, auto, IntEnum
 from ..failures import UnsupportedJointType
 
 
+class PlanStatus(Enum):
+    RUNNING = auto()
+    PAUSED = auto()
+    FINISHED = auto()
+
+
 class AdjacentBodyMethod(Enum):
     ClosestPoints = auto()
     """

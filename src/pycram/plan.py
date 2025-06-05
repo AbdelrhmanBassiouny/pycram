@@ -11,11 +11,11 @@ from random_events.product_algebra import Event
 
 from typing_extensions import Optional, Callable, Any, Dict, List, Iterable, TYPE_CHECKING, Type, Tuple, Iterator
 
-from .datastructures.enums import TaskStatus
+from .datastructures.enums import TaskStatus, PlanStatus
 from .external_interfaces import giskard
 from .failures import PlanFailure
 from .has_parameters import leaf_types
-from .ros import loginfo
+from .ros import loginfo, logdebug
 
 if TYPE_CHECKING:
     from .designator import BaseMotion, ActionDescription
@@ -27,6 +27,7 @@ class Plan(nx.DiGraph):
     traverse the plan structure in depth first order and perform each PlanNode
     """
     current_plan: Plan = None
+    status: PlanStatus = PlanStatus.RUNNING
 
     on_start_callback: Dict[Optional[Type[ActionDescription]], List[Callable]] = {}
     on_end_callback: Dict[Optional[Type[ActionDescription]], List[Callable]] = {}
@@ -38,6 +39,14 @@ class Plan(nx.DiGraph):
         self.current_node: PlanNode = self.root
         self.on_start_callback = {}
         self.on_end_callback = {}
+
+    @classmethod
+    def pause(cls):
+        cls.status = PlanStatus.PAUSED
+
+    @classmethod
+    def resume(cls):
+        cls.status = PlanStatus.RUNNING
 
     def mount(self, other: Plan, mount_node: PlanNode = None):
         """
@@ -339,14 +348,14 @@ def managed_node(func: Callable) -> Callable:
             continue_execution = False
             while not continue_execution:
                 all_parents_status = [parent.status for parent in node.all_parents] + [node.status]
-                if TaskStatus.SLEEPING not in all_parents_status:
+                if TaskStatus.SLEEPING not in all_parents_status and Plan.status == PlanStatus.RUNNING:
                     continue_execution = True
                 time.sleep(0.1)
 
         all_parents_status = [parent.status for parent in node.all_parents] + [node.status]
         if TaskStatus.INTERRUPTED in all_parents_status:
             return
-        elif TaskStatus.SLEEPING in all_parents_status:
+        elif TaskStatus.SLEEPING in all_parents_status or Plan.status == PlanStatus.PAUSED:
             wait(node)
 
         node.status = TaskStatus.RUNNING
@@ -374,6 +383,26 @@ def managed_node(func: Callable) -> Callable:
                 call_back(node)
         return result
 
+    return wrapper
+
+
+def pause_resume(func: Callable) -> Callable:
+    """
+    A decorator for pausing the plan before a function call and then resuming it after the call ends.
+
+    :param func: The callable to wrap with the decorator.
+    :return: The wrapped callable
+    """
+    def wrapper(*args, **kwargs) -> Any:
+        if Plan.status == PlanStatus.RUNNING:
+            logdebug("Pausing plan")
+            Plan.pause()
+            result = func(*args, **kwargs)
+            Plan.resume()
+            logdebug("Resuming plan")
+            return result
+        else:
+            return func(*args, **kwargs)
     return wrapper
 
 
