@@ -4,6 +4,7 @@ import inspect
 import time
 from dataclasses import field, dataclass
 from datetime import datetime
+from threading import RLock
 
 import networkx as nx
 from typing_extensions import Optional, Callable, Any, Dict, List, Iterable, TYPE_CHECKING, Type, Tuple, Iterator
@@ -28,6 +29,7 @@ class Plan(nx.DiGraph):
     """
     current_plan: Plan = None
     status: PlanStatus = PlanStatus.RUNNING
+    pause_resume_lock: RLock = RLock()
 
     on_start_callback: Dict[Optional[Type[ActionDescription]], List[Callable]] = {}
     on_end_callback: Dict[Optional[Type[ActionDescription]], List[Callable]] = {}
@@ -394,15 +396,16 @@ def pause_resume(func: Callable) -> Callable:
     :return: The wrapped callable
     """
     def wrapper(*args, **kwargs) -> Any:
-        if Plan.status == PlanStatus.RUNNING:
-            logdebug("Pausing plan")
-            Plan.pause()
-            result = func(*args, **kwargs)
-            Plan.resume()
-            logdebug("Resuming plan")
-            return result
-        else:
-            return func(*args, **kwargs)
+        with Plan.pause_resume_lock:
+            if Plan.status == PlanStatus.RUNNING:
+                logdebug("Pausing plan")
+                Plan.pause()
+                result = func(*args, **kwargs)
+                Plan.resume()
+                logdebug("Resuming plan")
+                return result
+            else:
+                return func(*args, **kwargs)
     return wrapper
 
 
