@@ -6,6 +6,7 @@ import math
 from dataclasses import dataclass, field, fields
 
 import numpy as np
+from rospy import ROSException
 from scipy.spatial.transform import Rotation as R
 from typing_extensions import Self, Tuple, Optional, List, TYPE_CHECKING, Any
 
@@ -440,9 +441,12 @@ class PoseStamped(HasParameters):
         :param child_link_id: Frame to which the transform is pointing.
         :return: A TransformStamped object.
         """
-        return TransformStamped(header=self.header,
-                                pose=Transform.from_list(self.position.to_list(), self.orientation.to_list()),
-                                child_frame_id=child_link_id)
+        try:
+            return TransformStamped(header=self.header,
+                                    pose=Transform.from_list(self.position.to_list(), self.orientation.to_list()),
+                                    child_frame_id=child_link_id)
+        except AttributeError:
+            print("Cannot convert PoseStamped to TransformStamped")
 
     def round(self, decimals: int = 4):
         """

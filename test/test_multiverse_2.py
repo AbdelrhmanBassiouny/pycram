@@ -4,7 +4,8 @@ import unittest
 import numpy as np
 from typing_extensions import Optional, List
 
-from pycram.datastructures.dataclasses import Color, AxisAlignedBoundingBox, ContactPointsList, ContactPoint
+from pycram.datastructures.dataclasses import Color, AxisAlignedBoundingBox, ContactPointsList, ContactPoint, \
+    BoxVisualShape
 from pycram.datastructures.enums import Arms, JointType, WorldMode
 from pycram.datastructures.enums import LoggerLevel, GripperState
 from pycram.datastructures.pose import Pose, PoseStamped, Vector3, Quaternion, Header
@@ -497,8 +498,8 @@ class TestMultiverse(unittest.TestCase):
         if "box" in World.current_world.get_object_names():
             box = World.current_world.get_object_by_name("box")
             return box
-        obj_desc = GenericObjectDescription('box', [0, 0, 0], [0.02, 0.02, 0.02],
-                                            color=Color(0, 1, 0, 1))
+        box_shape = BoxVisualShape(Color(0, 1, 0, 1), [0, 0, 0], [0.02, 0.02, 0.02])
+        obj_desc = GenericObjectDescription('box', box_shape)
         box = Object("box", PhysicalObject, None, description=obj_desc)
         return box
 

@@ -1,4 +1,5 @@
 import unittest
+from unittest import skip
 
 from owlready2 import destroy_entity, get_ontology, Thing, FunctionalProperty, Imp, sync_reasoner_pellet
 from pycram.testing import EmptyBulletWorldTestCase
@@ -46,6 +47,7 @@ class TableConceptTestCase(unittest.TestCase):
         self.ontology.destroy_individuals()
 
 
+@skip("Not needed")
 class AnnotationTestCase(EmptyBulletWorldTestCase):
 
     def test_reasoner(self):

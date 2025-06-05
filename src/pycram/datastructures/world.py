@@ -101,10 +101,8 @@ class World(WorldEntity, ABC):
         :param id_: The unique id of the world.
         """
         self.is_prospection_world: bool = is_prospection
-        if not is_prospection:
-            self.ontology = OntologyWrapper()
-        else:
-            self.ontology = None
+        self.ontology = OntologyWrapper()
+
         WorldEntity.__init__(self, id_, self, concept=pycrap.ontologies.World)
 
         self.latest_state_id: Optional[int] = None
@@ -404,6 +402,15 @@ class World(WorldEntity, ABC):
         :return: the object with the given root link name.
         """
         objects_found = [obj for obj in self.objects if obj.root_link.name == name]
+        if len(objects_found) == 0:
+            raise ObjectNotFound(name)
+        return objects_found[0]
+
+    def get_object_by_link_name(self, name: str) -> Optional[Object]:
+        """
+        :return: the object with the given link name.
+        """
+        objects_found = [obj for obj in self.objects if name in obj.link_names]
         if len(objects_found) == 0:
             raise ObjectNotFound(name)
         return objects_found[0]

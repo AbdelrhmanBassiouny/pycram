@@ -5,12 +5,13 @@ from pathlib import Path
 
 from typing_extensions import TYPE_CHECKING, List, Optional
 
+
 if TYPE_CHECKING:
     from .datastructures.pose import PoseStamped
     from .description import Link, Joint
     from .world_concepts.world_object import Object
     from .datastructures.enums import JointType, MultiverseAPIName, Arms, StaticJointState, Grasp, DetectionTechnique, \
-        ContainerManipulationType
+        ContainerManipulationType, GraspDescription
     from .datastructures.world_entity import PhysicalBody
     from .validation.goal_validator import MultiJointPositionGoalValidator
     from .designator import ObjectDesignatorDescription
@@ -519,7 +520,7 @@ class Grasping(Task):
     The grasp type used to grasp the object.
     """
 
-    def __init__(self, obj: Object, robot: Object, arm: Arms, grasp: Optional[Grasp] = None, *args, **kwargs):
+    def __init__(self, obj: Object, robot: Object, arm: Arms, grasp: Optional[GraspDescription] = None, *args, **kwargs):
         self.obj = obj
         self.robot = robot
         self.arm = arm

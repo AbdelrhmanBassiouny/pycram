@@ -3,7 +3,7 @@ from trimesh import Trimesh
 from typing_extensions import List, Tuple, Optional, Union, Dict
 
 from pycrap.ontologies import PhysicalObject
-from .datastructures.dataclasses import ContactPointsList, RayResult
+from .datastructures.dataclasses import ContactPointsList, RayResult, BoxVisualShape, Color
 from .datastructures.enums import Frame, Arms, FindBodyInRegionMethod, Grasp
 from .datastructures.pose import PoseStamped, TransformStamped
 from .datastructures.world import World, UseProspectionWorld
@@ -358,7 +358,8 @@ def generate_object_at_target(target_location: List[float], size: Tuple[float, .
     :param size: The size of the object.
     :param name: The name of the object.
     """
-    gen_obj_desc = GenericObjectDescription(name, [0, 0, 0], [s / 2 for s in size])
+    box_vis_shape = BoxVisualShape(Color(), [0, 0, 0], [s / 2 for s in size])
+    gen_obj_desc = GenericObjectDescription(name, box_vis_shape)
     gen_obj = Object(name, PhysicalObject, None, gen_obj_desc)
     gen_obj.set_pose(PoseStamped.from_list(target_location))
     return gen_obj

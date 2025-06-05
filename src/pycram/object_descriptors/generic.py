@@ -1,12 +1,12 @@
 from typing import Optional, Tuple
 
 from trimesh import Trimesh
-from typing_extensions import List, Any, Union, Dict, Self, TYPE_CHECKING
+from typing_extensions import List, Any, Union, Dict, Self, TYPE_CHECKING, Type
 
 from .urdf import ObjectDescription as UrdfObjectDescription
 from ..config.world_conf import WorldConfig
 from ..datastructures.dataclasses import VisualShape, BoxVisualShape, Color, AxisAlignedBoundingBox, RotatedBoundingBox, \
-    BoundingBox
+    BoundingBox, CylinderVisualShape
 from ..datastructures.enums import JointType
 from ..datastructures.pose import PoseStamped, Point
 from ..description import JointDescription as AbstractJointDescription, LinkDescription as AbstractLinkDescription, \
@@ -17,8 +17,18 @@ if TYPE_CHECKING:
 
 
 class NamedBoxVisualShape(BoxVisualShape):
-    def __init__(self, name: str, color: Color, visual_frame_position: List[float], half_extents: List[float]):
-        super().__init__(color, visual_frame_position, half_extents)
+    def __init__(self, name: str, color: Color, visual_frame_position: List[float], halfExtents: List[float]):
+        super().__init__(color, visual_frame_position, halfExtents)
+        self._name: str = name
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+
+class NamedCylinderVisualShape(CylinderVisualShape):
+    def __init__(self, name: str, color: Color, visual_frame_position: List[float], radius: float, length: float):
+        super().__init__(color, visual_frame_position, radius, length)
         self._name: str = name
 
     @property
@@ -28,9 +38,15 @@ class NamedBoxVisualShape(BoxVisualShape):
 
 class LinkDescription(AbstractLinkDescription):
 
-    def __init__(self, name: str, visual_frame_position: List[float], half_extents: List[float],
-                 color: Color = Color()):
-        super().__init__(NamedBoxVisualShape(name, color, visual_frame_position, half_extents))
+    def __init__(self, name: str, visual_shape: VisualShape):
+        shape_data = visual_shape.shape_data()
+        if isinstance(visual_shape, BoxVisualShape):
+            shape_type = NamedBoxVisualShape
+        elif isinstance(visual_shape, CylinderVisualShape):
+            shape_type = NamedCylinderVisualShape
+        else:
+            raise NotImplementedError(f"Description for Shape of type {type(shape_data)} is not implemented")
+        super().__init__(shape_type(name, visual_shape.rgba_color, visual_shape.visual_frame_position, **shape_data))
 
     @property
     def geometry(self) -> List[VisualShape]:

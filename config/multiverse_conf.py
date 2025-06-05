@@ -2,7 +2,7 @@ import datetime
 from dataclasses import dataclass
 
 from typing_extensions import Type, Optional
-from urdf_parser_py.urdf import URDF
+from ..object_descriptors.urdf import ObjectDescription as URDF
 
 from .world_conf import WorldConfig
 from pycram.description import ObjectDescription
@@ -21,11 +21,11 @@ class SimulatorConfig:
     """
     The time step of the simulation in seconds.
     """
-    integrator: Optional[str] = None
+    integrator: str = "RK4"
     """
     The integrator to use for the simulation.
     """
-    cone: Optional[str] = None
+    cone: Optional[str] = "PYRAMIDAL"
     """
     The cone to use for the simulation.
     """
@@ -108,3 +108,9 @@ class MultiverseConfig(WorldConfig):
     depth_images_are_in_meter = True
 
     max_batch_size_for_rays = None
+
+    @classmethod
+    def set_simulator_config(cls, simulator_config: SimulatorConfig):
+        cls.simulator_config = simulator_config
+        cls.simulation_time_step = simulator_config.step_size
+        cls.simulation_frequency = int(1 / simulator_config.step_size.total_seconds())

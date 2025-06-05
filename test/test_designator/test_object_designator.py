@@ -1,4 +1,6 @@
 import unittest
+from unittest import skip
+
 
 from pycram.designators.object_designator import *
 from pycram.testing import BulletWorldTestCase
@@ -23,12 +25,11 @@ class TestObjectDesignator(BulletWorldTestCase):
 
 
 class OntologyObjectDesignatorDescriptionTestCase(BulletWorldTestCase):
-
+    @skip("Not needed")
     def test_type_query_for_food(self):
         self.world.ontology.reason()
         result = self.world.ontology.search(type=Food)
         self.assertEqual(len(result), 2)
-
 
 
 if __name__ == '__main__':

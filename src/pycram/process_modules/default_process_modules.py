@@ -5,7 +5,7 @@ from typing_extensions import List, TYPE_CHECKING
 from scipy.spatial.transform import Rotation as R
 
 from pycrap.urdf_parser import parse_furniture
-from ..datastructures.dataclasses import Colors
+from ..datastructures.dataclasses import Colors, BoxVisualShape
 from ..datastructures.world import World
 from ..designators.motion_designator import *
 from ..external_interfaces import giskard
@@ -334,10 +334,11 @@ class DefaultDetectingReal(ProcessModule):
                 print(type_concept)
                 obj_name = obj_type + "" + str(get_time())
                 print(obj_name)
-                gen_obj_desc = GenericObjectDescription(obj_name, [0, 0, 0], hsize)
                 print("1")
                 if obj_color is not None: color = Colors.from_string(obj_color)
                 else: color = Colors.PINK
+                box_vis_shape = BoxVisualShape(color, [0, 0, 0], hsize)
+                gen_obj_desc = GenericObjectDescription(obj_name, box_vis_shape)
                 print("2")
                 generic_obj = Object(name=obj_name, concept=type_concept, path=None, description=gen_obj_desc,
                                      color=color)

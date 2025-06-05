@@ -33,8 +33,6 @@ class HasConcept:
     def __init__(self, world: World, name: Optional[str] = None, concept: Type[Base] = PhysicalObject,
                  parse_name: bool = True):
 
-        if world.is_prospection_world:
-            return
         self.onto_name = name
         self.ontology_concept = concept
         self.ontology_individual = self.ontology_concept(name=name.lower() if name is not None else None,

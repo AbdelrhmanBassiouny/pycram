@@ -1,26 +1,25 @@
 import os
 import threading
-from time import sleep
 
 import numpy as np
-from mujoco_connector.src.mujoco_connector import MultiverseMujocoConnector
 from typing_extensions import List, Optional, Dict, Callable, Type, Tuple, Union
 
+from mujoco_connector.src.mujoco_connector import MultiverseMujocoConnector
 from pycrap.ontologies import PhysicalObject, Floor
-from ..config.multiverse_conf import MultiverseConfig
+from ..config.multiverse_conf import MultiverseConfig, SimulatorConfig
 from ..datastructures.dataclasses import Color, ContactPointsList, ContactPoint, LateralFriction, RayResult
 from ..datastructures.enums import WorldMode, JointType, MultiverseJointCMD
 from ..datastructures.pose import Pose, PoseStamped, Vector3, Quaternion
 from ..datastructures.world import World
 from ..datastructures.world_entity import PhysicalBody
 from ..description import Link, Joint
-from ..failures import ObjectNotFound, LinkNotFound
+from ..failures import LinkNotFound, ObjectNotFound
 from ..object_descriptors.generic import ObjectDescription as GenericObjectDescription
+
 try:
     from ..object_descriptors.mjcf import ObjectDescription as MJCF
 except ImportError:
     MJCF = None
-from ..object_descriptors.urdf import ObjectDescription as URDF
 from ..robot_description import RobotDescription
 from ..ros import logwarn, logerr
 from ..utils import RayTestUtils, xyzw_to_wxyz_arr, adjust_camera_pose_based_on_target, wxyz_to_xyzw_arr
@@ -51,9 +50,6 @@ class Multiverse(World):
     Add the MJCF/URDF description extension to the extension to description type mapping for the objects.
     """
 
-    def _init_world(self, mode: WorldMode):
-        pass
-
     def __init__(self, mode: WorldMode = WorldMode.DIRECT,
                  is_prospection: Optional[bool] = False,
                  clear_cache: bool = False,
@@ -70,7 +66,9 @@ class Multiverse(World):
         """
 
         for key, value in conf_kwargs.items():
-            if value is not None:
+            if isinstance(value, SimulatorConfig):
+                self.conf.set_simulator_config(value)
+            elif value is not None:
                 setattr(self.conf, key, value)
 
         self.latest_save_id: Optional[int] = None
@@ -84,12 +82,12 @@ class Multiverse(World):
                                            "mjcf/floor/floor.xml")
         self._scene_file_path = scene_file_path
 
-        self.simulator = MultiverseMujocoConnector(file_path=scene_file_path,
-                                                   headless=mode == WorldMode.DIRECT,
-                                                   real_time_factor=1,
-                                                   step_size=self.conf.simulator_config.step_size.total_seconds(),
-                                                   integrator=self.conf.simulator_config.integrator,
-                                                   cone=self.conf.simulator_config.cone)
+        self.simulator: MultiverseMujocoConnector = MultiverseMujocoConnector(file_path=scene_file_path,
+                                                                              headless=mode == WorldMode.DIRECT,
+                                                                              real_time_factor=1,
+                                                                              step_size=self.conf.simulator_config.step_size.total_seconds(),
+                                                                              integrator=self.conf.simulator_config.integrator,
+                                                                              cone=self.conf.simulator_config.cone)
         self.simulator.start(simulate_in_thread=False, render_in_thread=mode == WorldMode.GUI)
         self.simulator.step()
 
@@ -104,6 +102,9 @@ class Multiverse(World):
             self._spawn_floor()
 
         self.kill_renderer = threading.Event()
+
+    def _init_world(self, mode: WorldMode):
+        pass
 
     @property
     def scene_file_path(self) -> str:
@@ -300,19 +301,28 @@ class Multiverse(World):
         return PoseStamped(Pose(self._get_body_position(body), self._get_body_orientation(body)))
 
     def _get_body_position(self, body: PhysicalBody) -> Vector3:
-        if body.parent_entity.ontology_concept == Floor:
+        if issubclass(body.parent_entity.ontology_concept, Floor) or body.name == "world":
             return Vector3()
-        return Vector3(*self.simulator.get_body_position(body.name).result.tolist())
+        try:
+            return Vector3(*self.simulator.get_body_position(body.name).result.tolist())
+        except AttributeError:
+            logwarn(f"Could not get body {body.name} position from simulator.")
+            return Vector3()
 
     def _get_body_orientation(self, body: PhysicalBody) -> Quaternion:
         if body.parent_entity.ontology_concept == Floor:
             return Quaternion()
+        self.simulator.step()
         quat_arr = self.simulator.get_body_quaternion(body.name).result
         if quat_arr is None:
             err_msg = f"Failed to get orientation of body {body.name}"
             logerr(err_msg)
             raise ValueError(err_msg)
-        return Quaternion(*wxyz_to_xyzw_arr(quat_arr).tolist())
+        try:
+            return Quaternion(*wxyz_to_xyzw_arr(quat_arr).tolist())
+        except ZeroDivisionError:
+            err_msg = f"Failed to get orientation of body {body.name}"
+            logerr(err_msg)
 
     def _set_multiple_joint_positions(self, joint_positions: Dict[Joint, float]) -> bool:
         joints_data = {joint.name: position
@@ -529,7 +539,10 @@ class Multiverse(World):
     def get_link_given_object_and_link_names(self, object_name: str, link_name: str) -> Link:
         root_link_name = "planeLink" if object_name == "world" else object_name
         link_name = "planeLink" if link_name == "world" else link_name
-        obj = self.get_object_by_root_link_name(root_link_name)
+        try:
+            obj = self.get_object_by_root_link_name(root_link_name)
+        except ObjectNotFound:
+            obj = self.get_object_by_link_name(link_name)
         if link_name in obj.links:
             return obj.links[link_name]
         else:

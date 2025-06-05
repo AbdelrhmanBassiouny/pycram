@@ -231,7 +231,7 @@ class Link(PhysicalBody, ObjectEntity, LinkDescription, ABC):
         """
         return self.description.name
 
-    def get_axis_aligned_bounding_box(self, shift_to_link_position: bool = True) -> AxisAlignedBoundingBox:
+    def get_axis_aligned_bounding_box(self, shift_to_link_position: bool = True) -> Optional[AxisAlignedBoundingBox]:
         """
         :param shift_to_link_position: If True, return the bounding box transformed to the link pose.
         :return: The axis-aligned bounding box of a link. First try to get it from the simulator, if not,
@@ -241,7 +241,7 @@ class Link(PhysicalBody, ObjectEntity, LinkDescription, ABC):
             return self.world.get_link_axis_aligned_bounding_box(self)
         except NotImplementedError:
             bounding_box = self.get_axis_aligned_bounding_box_from_geometry()
-            if shift_to_link_position:
+            if shift_to_link_position and bounding_box is not None:
                 return bounding_box.shift_by(self.pose.position)
             else:
                 return bounding_box
@@ -256,13 +256,15 @@ class Link(PhysicalBody, ObjectEntity, LinkDescription, ABC):
         except NotImplementedError:
             return self.get_axis_aligned_bounding_box_from_geometry().get_rotated_box(self.transform)
 
-    def get_axis_aligned_bounding_box_from_geometry(self) -> AxisAlignedBoundingBox:
+    def get_axis_aligned_bounding_box_from_geometry(self) -> Optional[AxisAlignedBoundingBox]:
+        bounding_box = None
         if isinstance(self.geometry, List):
             all_boxes = [geom.get_axis_aligned_bounding_box(self.get_mesh_path([geom])[0])
                          if isinstance(geom, MeshVisualShape) else geom.get_axis_aligned_bounding_box()
                          for geom in self.geometry
                          ]
-            bounding_box = AxisAlignedBoundingBox.from_multiple_bounding_boxes(all_boxes)
+            if len(all_boxes) > 0:
+                bounding_box = AxisAlignedBoundingBox.from_multiple_bounding_boxes(all_boxes)
         else:
             geom = self.geometry
             bounding_box = geom.get_axis_aligned_bounding_box(self.get_mesh_path([geom])[0]) \

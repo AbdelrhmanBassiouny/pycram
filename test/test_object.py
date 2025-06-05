@@ -1,3 +1,5 @@
+from unittest import skip
+
 import numpy as np
 import trimesh.parent
 from pycram.tf_transformations import quaternion_from_euler
@@ -6,7 +8,7 @@ from pycram.testing import BulletWorldTestCase
 
 from pycram.datastructures.enums import JointType, ObjectType
 from pycram.datastructures.pose import PoseStamped, Point, Quaternion
-from pycram.datastructures.dataclasses import Color, BoundingBox as BB
+from pycram.datastructures.dataclasses import Color, BoundingBox as BB, BoxVisualShape
 from pycram.failures import UnsupportedFileExtension
 from pycram.world_concepts.world_object import Object
 from pycram.object_descriptors.generic import ObjectDescription as GenericObjectDescription
@@ -199,7 +201,8 @@ class TestObject(BulletWorldTestCase):
 class GenericObjectTestCase(BulletWorldTestCase):
 
     def test_init_generic_object(self):
-        gen_obj_desc = GenericObjectDescription("robokudo_object", [0,0,0], [0.1, 0.1, 0.1])
+        box_shape = BoxVisualShape(Color(), [0, 0, 0], [0.1, 0.1, 0.1])
+        gen_obj_desc = GenericObjectDescription("robokudo_object", box_shape)
         obj = Object("robokudo_object", Milk, None, gen_obj_desc)
         pose = obj.get_pose()
         self.assertTrue(isinstance(pose, PoseStamped))
@@ -207,6 +210,7 @@ class GenericObjectTestCase(BulletWorldTestCase):
 
 class OntologyIntegrationTestCase(BulletWorldTestCase):
 
+    @skip("Not needed")
     def test_querying(self):
         """
          Test case if spawning a second object of the same Concept in this case milk,

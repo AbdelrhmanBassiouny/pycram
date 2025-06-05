@@ -1,6 +1,7 @@
 import numpy as np
 
 from pycrap.ontologies import PhysicalObject
+from .datastructures.dataclasses import BoxVisualShape, Color
 from .object_descriptors.generic import ObjectDescription
 from .tf_transformations import quaternion_from_euler
 from typing_extensions import Tuple, List, Union, Dict, Iterable, Optional, Iterator
@@ -122,7 +123,8 @@ def visibility_validator(robot: Object,
     robot_pose = robot.get_pose()
 
     if isinstance(object_or_pose, PoseStamped):
-        gen_obj_desc = ObjectDescription("viz_object", [0, 0, 0], [0.02, 0.02, 0.02])
+        box_shape = BoxVisualShape(Color(), [0, 0, 0], [0.02, 0.02, 0.02])
+        gen_obj_desc = ObjectDescription("viz_object", box_shape)
         obj = Object("viz_object", PhysicalObject, pose=object_or_pose, description=gen_obj_desc)
     else:
         obj = object_or_pose

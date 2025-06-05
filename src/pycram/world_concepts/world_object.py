@@ -1503,7 +1503,7 @@ class Object(PhysicalBody, HasParameters):
         """
         return self.world.get_colors_of_object_links(self)
 
-    def get_axis_aligned_bounding_box(self, shift_to_object_position: bool = True) -> AxisAlignedBoundingBox:
+    def get_axis_aligned_bounding_box(self, shift_to_object_position: bool = True) -> Optional[AxisAlignedBoundingBox]:
         """
         Return the axis aligned bounding box of this object.
 
@@ -1513,7 +1513,15 @@ class Object(PhysicalBody, HasParameters):
         if self.has_one_link:
             return self.root_link.get_axis_aligned_bounding_box(shift_to_object_position)
         else:
-            return self.world.get_object_axis_aligned_bounding_box(self)
+            bbox = None
+            all_bbox = []
+            for link in self.links.values():
+                bbox = link.get_axis_aligned_bounding_box(shift_to_object_position)
+                if bbox is not None:
+                    all_bbox.append(bbox)
+            if len(all_bbox) > 0:
+                bbox = AxisAlignedBoundingBox.from_multiple_bounding_boxes(all_bbox)
+            return bbox
 
     def get_rotated_bounding_box(self) -> RotatedBoundingBox:
         """

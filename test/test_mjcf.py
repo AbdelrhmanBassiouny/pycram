@@ -32,7 +32,7 @@ class TestMjcf(TestCase):
         self.assertEqual(self.model.child_map, {'body1': [('joint1', 'body2')], 'body2': [('joint2', 'body3')]})
 
     def test_parent_map(self):
-        self.assertEqual(self.model.parent_map, {'body2': ('joint1', 'body1'), 'body3': ('joint2', 'body2')})
+        self.assertEqual(self.model.parent_map, {'body1': (None, None), 'body2': ('joint1', 'body1'), 'body3': ('joint2', 'body2')})
 
     def test_get_chain(self):
         self.assertEqual(self.model.get_chain('body1', 'body3'),

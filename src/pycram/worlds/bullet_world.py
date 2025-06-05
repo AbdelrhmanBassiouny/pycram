@@ -8,7 +8,7 @@ import time
 import numpy as np
 import pycram_bullet as p
 import yaml
-from typing_extensions import List, Optional, Dict, Any, Callable
+from typing_extensions import List, Optional, Dict, Any, Callable, Tuple
 
 from pycrap.ontologies import Floor
 from ..datastructures.dataclasses import Color, AxisAlignedBoundingBox, MultiBody, VisualShape, BoxVisualShape, \
@@ -90,15 +90,25 @@ class BulletWorld(World):
         """
         Creates a visual and collision box in the simulation.
         """
+        vis_shape, col_shape = self.create_visual_and_collision_box(description)
+
+        return self._create_generic_object_from_collision_and_visual_shapes(description, vis_shape, col_shape)
+
+    def create_visual_and_collision_box(self, description: GenericObjectDescription)\
+            -> Tuple[int, int]:
         # Create visual shape
         vis_shape = p.createVisualShape(p.GEOM_BOX, halfExtents=description.shape_data,
                                         rgbaColor=description.color.get_rgba(), physicsClientId=self.id)
 
         # Create collision shape
         col_shape = p.createCollisionShape(p.GEOM_BOX, halfExtents=description.shape_data, physicsClientId=self.id)
+        return vis_shape, col_shape
 
+    def _create_generic_object_from_collision_and_visual_shapes(self, description: GenericObjectDescription,
+                                                               vis_shape_id: int, col_shape_id: int,
+                                                               pose: Optional[PoseStamped] = None):
         # Create MultiBody with both visual and collision shapes
-        obj_id = p.createMultiBody(baseMass=1.0, baseCollisionShapeIndex=col_shape, baseVisualShapeIndex=vis_shape,
+        obj_id = p.createMultiBody(baseMass=1.0, baseCollisionShapeIndex=col_shape_id, baseVisualShapeIndex=vis_shape_id,
                                    basePosition=description.origin.position.to_list(),
                                    baseOrientation=description.origin.orientation.to_list(), physicsClientId=self.id)
 
