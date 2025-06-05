@@ -33,8 +33,8 @@ class LinkDescription(AbstractLinkDescription):
         super().__init__(NamedBoxVisualShape(name, color, visual_frame_position, half_extents))
 
     @property
-    def geometry(self) -> Union[VisualShape, None]:
-        return self.parsed_description
+    def geometry(self) -> List[VisualShape]:
+        return [self.parsed_description]
 
     @property
     def origin(self) -> PoseStamped:
@@ -136,11 +136,11 @@ class ObjectDescription(AbstractObjectDescription):
         :param new_description_file: The path to save the new description file.
         :return: The new object description.
         """
-        my_bounding_box: AxisAlignedBoundingBox = self._links[0].geometry.get_axis_aligned_bounding_box()
-        other_bounding_box: AxisAlignedBoundingBox = other._links[0].geometry.get_axis_aligned_bounding_box()
+        my_bounding_boxes: List[AxisAlignedBoundingBox] = [g.get_axis_aligned_bounding_box() for g in self._links[0].geometry]
+        other_bounding_boxes: List[AxisAlignedBoundingBox] = [g.get_axis_aligned_bounding_box() for g in other._links[0].geometry]
         transform = child_pose_wrt_parent.to_transform_stamped(self.name)
-        other_bounding_box: RotatedBoundingBox = other_bounding_box.get_rotated_box(transform)
-        new_mesh = BoundingBox.merge_multiple_bounding_boxes_into_mesh([my_bounding_box, other_bounding_box],
+        other_bounding_boxes: List[RotatedBoundingBox] = [box.get_rotated_box(transform) for box in other_bounding_boxes]
+        new_mesh = BoundingBox.merge_multiple_bounding_boxes_into_mesh(my_bounding_boxes + other_bounding_boxes,
                                                                        use_random_events=False)
         return self.create_urdf_from_mesh(new_mesh, path=new_description_file)
 
@@ -226,7 +226,7 @@ class ObjectDescription(AbstractObjectDescription):
 
     @property
     def shape_data(self) -> List[float]:
-        return self._links[0].geometry.shape_data()['halfExtents']
+        return self._links[0].geometry[0].shape_data()['halfExtents']
 
     @property
     def color(self) -> Color:

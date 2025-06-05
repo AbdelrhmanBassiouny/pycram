@@ -40,6 +40,14 @@ class Plan(nx.DiGraph):
         self.on_start_callback = {}
         self.on_end_callback = {}
 
+    @classmethod
+    def pause(cls):
+        cls.status = PlanStatus.PAUSED
+
+    @classmethod
+    def resume(cls):
+        cls.status = PlanStatus.RUNNING
+
     def mount(self, other: Plan, mount_node: PlanNode = None):
         """
         Mounts another plan to this plan. The other plan will be added as a child of the mount_node.
@@ -388,9 +396,9 @@ def pause_resume(func: Callable) -> Callable:
     def wrapper(*args, **kwargs) -> Any:
         if Plan.status == PlanStatus.RUNNING:
             logdebug("Pausing plan")
-            Plan.status = PlanStatus.PAUSED
+            Plan.pause()
             result = func(*args, **kwargs)
-            Plan.status = PlanStatus.RUNNING
+            Plan.resume()
             logdebug("Resuming plan")
             return result
         else:
