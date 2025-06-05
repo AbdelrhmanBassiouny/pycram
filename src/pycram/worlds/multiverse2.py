@@ -76,7 +76,7 @@ class Multiverse(World):
 
         if scene_file_path is None:
             scene_file_path = os.path.join(self.conf.resources_path,
-                                           "worlds/floor/floor.xml")
+                                           "mjcf/floor/floor.xml")
         self._scene_file_path = scene_file_path
 
         self.simulator = MultiverseMujocoConnector(file_path=scene_file_path,
