@@ -109,6 +109,10 @@ class MultiverseConfig(WorldConfig):
 
     max_batch_size_for_rays = None
 
+    supports_spawning = False
+
+    supports_destroying = False
+
     @classmethod
     def set_simulator_config(cls, simulator_config: SimulatorConfig):
         cls.simulator_config = simulator_config

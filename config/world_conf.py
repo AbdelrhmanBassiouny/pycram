@@ -120,6 +120,16 @@ class WorldConfig:
     The delay between the execution of actions/motions to imitate real world execution time.
     """
 
+    supports_spawning: bool = True
+    """
+    Whether the world supports spawning objects during execution.
+    """
+
+    supports_destroying: bool = True
+    """
+    Whether the world supports destroying objects during execution.
+    """
+
     @classproperty
     def default_camera_config(cls) -> Dict:
         """
