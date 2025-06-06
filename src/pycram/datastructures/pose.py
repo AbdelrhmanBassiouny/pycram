@@ -6,7 +6,6 @@ import math
 from dataclasses import dataclass, field, fields
 
 import numpy as np
-from rospy import ROSException
 from scipy.spatial.transform import Rotation as R
 from typing_extensions import Self, Tuple, Optional, List, TYPE_CHECKING, Any
 
