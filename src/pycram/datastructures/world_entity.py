@@ -185,10 +185,11 @@ class PhysicalBody(WorldEntity):
         self.ontology_lock: RLock = RLock()
         self.updated_containment_of_parts: bool = False
         self.latest_known_parts: Dict[str, PhysicalBody] = {}
+        self.contained_bodies: List[PhysicalBody] = []
+        self.contained_in_bodies: List[PhysicalBody] = []
 
     def reset_concepts(self):
         super().reset_concepts()
-        self.contained_bodies = []
         for part in self.parts.values():
             part.reset_concepts()
 
@@ -242,7 +243,8 @@ class PhysicalBody(WorldEntity):
                 continue
             if body.get_axis_aligned_bounding_box().contains_box(self.get_axis_aligned_bounding_box()):
                 logdebug(f"{body.name} contains {self.name}")
-                body.contained_bodies = [self]
+                body.contained_bodies.append(self)
+                self.contained_in_bodies.append(body)
 
     def get_adjacent_bodies_using_closest_points(self, max_distance: float = 0.5) -> List[PhysicalBody]:
         """
@@ -318,29 +320,16 @@ class PhysicalBody(WorldEntity):
         :param body: The physical body to check if it is contained by this body.
         :return: True if the body contains the other body, otherwise False.
         """
-        with self.ontology_lock:
-            contained_bodies = self.contained_bodies
-            return body in contained_bodies or (body.parent_entity and body.parent_entity in contained_bodies)
+        return body in self.contained_bodies or (body.parent_entity and body.parent_entity in self.contained_bodies)
 
-    @property
-    def contained_bodies(self) -> List[PhysicalBody]:
+    def is_contained_in_body(self, body: PhysicalBody) -> bool:
         """
-        :return: True if the object contains the other object, otherwise False.
-        """
-        with self.ontology_lock:
-            self.world.ontology.reason()
-            return [self.world.ontology.python_objects[phys_obj]
-                    for phys_obj in self.ontology_individual.contains_object]
+        Check if this body is contained in another body.
 
-    @contained_bodies.setter
-    def contained_bodies(self, bodies: List[PhysicalBody]) -> None:
+        :param body: The physical body to check if it contains this body.
+        :return: True if this body is contained in the other body, otherwise False.
         """
-        Set the bodies that are contained by this body.
-
-        :param bodies: The bodies that are contained in this body.
-        """
-        with self.ontology_lock:
-            self.ontology_individual.contains_object = [body.ontology_individual for body in bodies]
+        return body in self.contained_in_bodies
 
     @abstractmethod
     def get_axis_aligned_bounding_box(self) -> AxisAlignedBoundingBox:
