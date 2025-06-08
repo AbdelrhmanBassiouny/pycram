@@ -252,8 +252,6 @@ class PhysicalBody(WorldEntity):
                     continue
                 b_depth, b_width, b_height = bbox.depth, bbox.width, bbox.height
                 i_depth, i_width, i_height = intersection.depth, intersection.width, intersection.height
-                logdebug(f"Intersection: {intersection}")
-                logdebug(f"Bounding boxes: {bbox} and {body.get_axis_aligned_bounding_box()}")
                 if abs(i_depth - b_depth) <= 1e-4 and abs(i_width - b_width) <= 1e-4 and i_height >= b_height * intersection_ratio \
                     or abs(i_depth - b_depth) <= 1e-4 and i_width >= b_width * intersection_ratio and abs(i_height - b_height) <= 1e-4 \
                     or i_depth >= b_depth * intersection_ratio and abs(i_width - b_width) <= 1e-4 and abs(i_height - b_height) <= 1e-4:
