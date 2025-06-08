@@ -223,7 +223,8 @@ class PhysicalBody(WorldEntity):
 
     def update_containment(self, excluded_bodies: Optional[List[PhysicalBody]] = None,
                            candidate_selection_method: AdjacentBodyMethod = AdjacentBodyMethod.ClosestPoints,
-                           max_distance: float = 0.5) -> None:
+                           max_distance: float = 0.5,
+                           intersection_ratio: float = 1) -> None:
         """
         Update the containment of the object by checking if it is contained in other bodies,
          excluding the given excluded bodies.
@@ -231,6 +232,8 @@ class PhysicalBody(WorldEntity):
         :param excluded_bodies: The bodies that should be excluded from the containment check.
         :param candidate_selection_method: The method to select the candidates for the containment check.
         :param max_distance: The maximum distance from this body to other bodies to consider a body as a candidate.
+        :param intersection_ratio: The ratio of the intersection of the bounding boxes of this body and the candidate
+        body in one dimension, while the other two dimensions must be full intersection.
         """
         excluded_bodies = [] if excluded_bodies is None else excluded_bodies
         excluded_bodies.append(self)
@@ -241,7 +244,23 @@ class PhysicalBody(WorldEntity):
         for body in bodies:
             if body in excluded_bodies:
                 continue
-            if body.get_axis_aligned_bounding_box().contains_box(self.get_axis_aligned_bounding_box()):
+            is_contained = False
+            bbox = self.get_axis_aligned_bounding_box()
+            if intersection_ratio < 1:
+                intersection = bbox.intersection_with(body.get_axis_aligned_bounding_box())
+                if intersection is None:
+                    continue
+                b_depth, b_width, b_height = bbox.depth, bbox.width, bbox.height
+                i_depth, i_width, i_height = intersection.depth, intersection.width, intersection.height
+                logdebug(f"Intersection: {intersection}")
+                logdebug(f"Bounding boxes: {bbox} and {body.get_axis_aligned_bounding_box()}")
+                if abs(i_depth - b_depth) <= 1e-4 and abs(i_width - b_width) <= 1e-4 and i_height >= b_height * intersection_ratio \
+                    or abs(i_depth - b_depth) <= 1e-4 and i_width >= b_width * intersection_ratio and abs(i_height - b_height) <= 1e-4 \
+                    or i_depth >= b_depth * intersection_ratio and abs(i_width - b_width) <= 1e-4 and abs(i_height - b_height) <= 1e-4:
+                    is_contained = True
+            elif body.get_axis_aligned_bounding_box().contains_box(bbox):
+                is_contained = True
+            if is_contained:
                 logdebug(f"{body.name} contains {self.name}")
                 body.contained_bodies.append(self)
                 self.contained_in_bodies.append(body)
