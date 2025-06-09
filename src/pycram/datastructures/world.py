@@ -143,10 +143,32 @@ class World(WorldEntity, ABC):
         self.original_state_id = self.save_state()
 
         self.on_add_object_callbacks: List[Callable[[Object], None]] = []
+        self.on_set_pose_callbacks: Dict[Object, Callable[[PoseStamped], None]] = {}
 
         self._set_world_rules()
 
         signal.signal(signal.SIGINT, self.signal_handler)
+
+    def add_set_pose_callback(self, obj: Object, callback: Callable[[PoseStamped], None]):
+        """
+        Add a callback to be called when the pose of an object is set.
+
+        :param obj: The object to add the callback for.
+        :param callback: The callback to be called.
+        """
+        if obj not in self.on_set_pose_callbacks:
+            self.on_set_pose_callbacks[obj] = []
+        self.on_set_pose_callbacks[obj].append(callback)
+
+    def remove_set_pose_callback(self, obj: Object, callback: Callable[[PoseStamped], None]):
+        """
+        Remove a callback to be called when the pose of an object is set.
+
+        :param obj: The object to remove the callback for.
+        :param callback: The callback to be removed.
+        """
+        if obj in self.on_set_pose_callbacks and callback in self.on_set_pose_callbacks[obj]:
+            self.on_set_pose_callbacks[obj].remove(callback)
 
     def _set_world_rules(self):
         """
@@ -911,7 +933,7 @@ class World(WorldEntity, ABC):
 
     @validate_object_pose
     @abstractmethod
-    def reset_object_base_pose(self, obj: Object, pose: PoseStamped) -> bool:
+    def _reset_object_base_pose(self, obj: Object, pose: PoseStamped) -> bool:
         """
         Reset the world position and orientation of the base of the object instantaneously,
         not through physics simulation. (x,y,z) position vector and (x,y,z,w) quaternion orientation.
@@ -926,9 +948,17 @@ class World(WorldEntity, ABC):
         """
         pass
 
+    def reset_object_base_pose(self, obj: Object, pose: PoseStamped) -> bool:
+        result = self.reset_object_base_pose(obj, pose)
+        if result:
+            if obj in self.on_set_pose_callbacks:
+                for callback in self.on_set_pose_callbacks[obj]:
+                    callback(pose)
+        return result
+
     @validate_multiple_object_poses
     @abstractmethod
-    def reset_multiple_objects_base_poses(self, objects: Dict[Object, PoseStamped]) -> bool:
+    def _reset_multiple_objects_base_poses(self, objects: Dict[Object, PoseStamped]) -> bool:
         """
         Reset the world position and orientation of the base of multiple objects instantaneously,
         not through physics simulation. (x,y,z) position vector and (x,y,z,w) quaternion orientation.
@@ -937,6 +967,15 @@ class World(WorldEntity, ABC):
         :return: True if the reset was successful, False otherwise.
         """
         pass
+
+    def reset_multiple_objects_base_poses(self, objects: Dict[Object, PoseStamped]) -> bool:
+        result = self.reset_multiple_objects_base_poses(objects)
+        if result:
+            for obj, pose in objects.items():
+                if obj in self.on_set_pose_callbacks:
+                    for callback in self.on_set_pose_callbacks[obj]:
+                        callback(pose)
+        return result
 
     @abstractmethod
     def step(self, func: Optional[Callable[[], None]] = None, step_seconds: Optional[float] = None) -> None:
