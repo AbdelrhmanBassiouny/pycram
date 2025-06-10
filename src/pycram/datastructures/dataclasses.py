@@ -1245,7 +1245,9 @@ class ContactPointsList(list):
         :param obj: An instance of the Object class that represents the object.
         :return: A list of Link instances that represent the links in contact of the object.
         """
-        return [point.body_b for point in self if point.body_b.parent_entity == obj]
+        body_b_set = {point.body_b for point in self if point.body_b.parent_entity == obj}
+        body_a_set = {point.body_a for point in self if point.body_a.parent_entity == obj}
+        return list(body_b_set.union(body_a_set))
 
     def get_points_of_object(self, obj: Object) -> ContactPointsList:
         """
@@ -1254,7 +1256,8 @@ class ContactPointsList(list):
         :param obj: An instance of the Object class that represents the object that the points are related to.
         :return: A ContactPointsList instance that represents the contact points of the object.
         """
-        return ContactPointsList([point for point in self if self.is_body_in_object(point.body_b, obj)])
+        return ContactPointsList([point for point in self if point.body_b.parent_entity == obj or 
+        point.body_a.parent_entity == obj])
 
     def get_points_of_link(self, link: Link) -> ContactPointsList:
         """
@@ -1282,9 +1285,8 @@ class ContactPointsList(list):
         :param previous_points: The initial points list.
         :return: A list of Object instances that represent the objects that got removed.
         """
-        initial_objects_in_contact = previous_points.get_objects_that_have_points()
-        current_objects_in_contact = self.get_objects_that_have_points()
-        return [obj for obj in initial_objects_in_contact if obj not in current_objects_in_contact]
+        bodies_that_got_removed = self.get_bodies_that_got_removed(previous_points)
+        return list({body.parent_entity for body in bodies_that_got_removed})
 
     def get_new_objects(self, previous_points: ContactPointsList) -> List[Object]:
         """
@@ -1293,9 +1295,8 @@ class ContactPointsList(list):
         :param previous_points: The initial points list.
         :return: A list of Object instances that represent the new objects.
         """
-        initial_objects_in_contact = previous_points.get_objects_that_have_points()
-        current_objects_in_contact = self.get_objects_that_have_points()
-        return [obj for obj in current_objects_in_contact if obj not in initial_objects_in_contact]
+        new_bodies = self.get_new_bodies(previous_points)
+        return list({body.parent_entity for body in new_bodies})
 
     def get_new_bodies(self, previous_points: ContactPointsList) -> List[PhysicalBody]:
         """
@@ -1331,7 +1332,8 @@ class ContactPointsList(list):
 
         :return: A list of Object instances that represent the objects that have points in the list.
         """
-        return list({point.body_b.parent_entity for point in self})
+        all_bodies = self.get_all_bodies()
+        return list({body.parent_entity for body in all_bodies})
 
     def __str__(self):
         return f"ContactPointsList: {', '.join([point.__str__() for point in self])}"
