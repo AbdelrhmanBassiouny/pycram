@@ -1297,6 +1297,17 @@ class ContactPointsList(list):
         current_objects_in_contact = self.get_objects_that_have_points()
         return [obj for obj in current_objects_in_contact if obj not in initial_objects_in_contact]
 
+    def get_new_bodies(self, previous_points: ContactPointsList) -> List[PhysicalBody]:
+        """
+        Return the bodies that are not in the initial points list but are in the current points list.
+
+        :param previous_points: The initial points list.
+        :return: A list of PhysicalBody instances that represent the new bodies.
+        """
+        initial_bodies_in_contact = previous_points.get_all_bodies()
+        current_bodies_in_contact = self.get_all_bodies()
+        return [body for body in current_bodies_in_contact if body not in initial_bodies_in_contact]
+
     def is_object_in_the_list(self, obj: Object) -> bool:
         """
         Check if the object is one of the objects that have points in the list.
