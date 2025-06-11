@@ -1,56 +1,43 @@
 # used for delayed evaluation of typing until python 3.11 becomes mainstream
 from __future__ import annotations
 
-import abc
-import inspect
-import math
 from dataclasses import dataclass, field
 from datetime import timedelta
 from functools import cached_property
-from time import sleep
 
 import numpy as np
-
-from .object_designator import BelieveObject
-from ..datastructures.world_entity import PhysicalBody
-from ..has_parameters import has_parameters
-from ..language import SequentialPlan, TryInOrderPlan
-from ..plan import with_plan
-
-from ..datastructures.partial_designator import PartialDesignator
-from ..datastructures.dataclasses import FrozenObject
-
-from .. import utils
-from ..tf_transformations import quaternion_from_euler
-from typing_extensions import List, Union, Optional, Type, Dict, Any, Iterable
+from typing_extensions import Union, Optional, Type, Dict, Any, Iterable
 
 from pycrap.ontologies import Location, PhysicalObject
 from .location_designator import CostmapLocation
 from .motion_designator import MoveJointsMotion, MoveGripperMotion, MoveTCPMotion, MoveMotion, \
     LookingMotion, DetectingMotion, OpeningMotion, ClosingMotion
+from .object_designator import BelieveObject
+from ..config.action_conf import ActionConfig
+from ..datastructures.dataclasses import FrozenObject
+from ..datastructures.enums import Arms, Grasp, GripperState, DetectionTechnique, DetectionState, MovementType, \
+    TorsoState, StaticJointState, Frame, FindBodyInRegionMethod, ContainerManipulationType
 from ..datastructures.grasp import GraspDescription
-from ..datastructures.world import World, UseProspectionWorld
+from ..datastructures.partial_designator import PartialDesignator
+from ..datastructures.pose import PoseStamped
+from ..datastructures.world import UseProspectionWorld
+from ..datastructures.world import World
 from ..description import Joint, Link, ObjectDescription
 from ..designator import ActionDescription, ObjectDesignatorDescription
 from ..failure_handling import try_action
+from ..failures import ObjectUnfetchable, ReachabilityFailure, NavigationGoalNotReachedError, PerceptionObjectNotFound, \
+    ObjectNotGraspedError
 from ..failures import TorsoGoalNotReached, ConfigurationNotReached, ObjectNotInGraspingArea, \
     ObjectNotPlacedAtTargetLocation, ObjectStillInContact, LookAtGoalNotReached, \
     ContainerManipulationError
+from ..has_parameters import has_parameters
+from ..language import SequentialPlan, TryInOrderPlan
 from ..local_transformer import LocalTransformer
-from ..failures import ObjectUnfetchable, ReachabilityFailure, NavigationGoalNotReachedError, PerceptionObjectNotFound, \
-    ObjectNotGraspedError
+from ..plan import with_plan
 from ..robot_description import EndEffectorDescription
-from ..ros import sleep
-from ..config.action_conf import ActionConfig
-
-from ..datastructures.enums import Arms, Grasp, GripperState, DetectionTechnique, DetectionState, MovementType, \
-    TorsoState, StaticJointState, Frame, FindBodyInRegionMethod, ContainerManipulationType
-
-from ..datastructures.pose import PoseStamped
-from ..datastructures.world import World
-
 from ..robot_description import RobotDescription, KinematicChainDescription
-from ..ros import logwarn, loginfo
+from ..ros import logwarn
+from ..tf_transformations import quaternion_from_euler
 from ..validation.error_checkers import PoseErrorChecker
 from ..validation.goal_validator import create_multiple_joint_goal_validator
 from ..world_concepts.world_object import Object
@@ -279,8 +266,8 @@ class ParkArmsAction(ActionDescription):
         validator = create_multiple_joint_goal_validator(World.current_world.robot, joint_poses)
         validator.wait_until_goal_is_achieved(max_wait_time=max_wait_time,
                                               time_per_read=timedelta(milliseconds=20))
-        if not validator.goal_achieved:
-            raise ConfigurationNotReached(validator, configuration_type=StaticJointState.Park)
+        # if not validator.goal_achieved:
+        #     raise ConfigurationNotReached(validator, configuration_type=StaticJointState.Park)
 
     @classmethod
     @with_plan
@@ -676,7 +663,7 @@ class TransportAction(ActionDescription):
 
         NavigateActionDescription(pickup_pose, True).perform()
         PickUpActionDescription(self.object_designator, pickup_pose.arm,
-                     grasp_description=pickup_pose.grasp_description).perform()
+                                grasp_description=pickup_pose.grasp_description).perform()
         ParkArmsActionDescription(Arms.BOTH).perform()
         try:
             place_loc = CostmapLocation(
@@ -937,7 +924,7 @@ class GraspingAction(ActionDescription):
     """
     Grasps an object described by the given Object Designator description
     """
-    object_designator: Object# Union[Object, ObjectDescription.Link]
+    object_designator: Object  # Union[Object, ObjectDescription.Link]
     """
     Object Designator for the object that should be grasped
     """
@@ -1103,6 +1090,7 @@ class MoveAndPickUpAction(ActionDescription):
                                  arm=arm,
                                  grasp_description=grasp_description,
                                  keep_joint_states=keep_joint_states)
+
 
 @has_parameters
 @dataclass

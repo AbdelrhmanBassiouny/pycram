@@ -488,7 +488,7 @@ class Object(PhysicalBody, HasParameters):
         Initialize the joint objects from the URDF file and creates a dictionary which mas the joint names to the
         corresponding joint objects
         """
-        self.joints = {}
+        self.joints: Dict[str, Joint] = {}
         for joint_name, joint_id in self.joint_name_to_id.items():
             parsed_joint_description = self.description.get_joint_by_name(joint_name)
             is_virtual = self.is_joint_virtual(joint_name)

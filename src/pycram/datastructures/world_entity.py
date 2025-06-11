@@ -618,6 +618,11 @@ class PhysicalBody(WorldEntity):
             grasp_pose = LocalTransformer().translate_pose_along_local_axis(grasp_pose, approach_axis, -rim_offset)
             grasp_pose = PoseStamped.from_list(grasp_pose.position.to_list(), self.orientation.to_list())
 
+        if self.world.robot_description.name == "iCub3":
+            grasp_pose.position.z += self.get_approach_offset() + 0.05
+            grasp_pose.position.x -= 0.01
+            grasp_pose.position.y -= self.get_rotated_bounding_box().depth / 2 + 0.01
+
         return grasp_pose
 
     def get_approach_offset(self) -> float:

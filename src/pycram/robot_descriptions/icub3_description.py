@@ -134,6 +134,27 @@ right_gripper.add_static_joint_states(GripperState.CLOSE, {"r_hand_thumb_0_joint
                                                           "r_hand_little_2_joint": 1.5707963267948966,
                                                           "r_hand_little_3_joint": 1.5707963267948966})
 
+right_gripper.add_static_joint_states(GripperState.PINCH, {"r_hand_thumb_0_joint": 1.4,
+                                                          "r_hand_thumb_1_joint": 0,
+                                                          "r_hand_thumb_2_joint": 0,
+                                                          "r_hand_thumb_3_joint": 0,
+                                                          "r_hand_index_0_joint": 0,
+                                                          "r_hand_index_1_joint": 1.5707963267948966,
+                                                          "r_hand_index_2_joint": 0,
+                                                          "r_hand_index_3_joint": 0,
+                                                          "r_hand_middle_0_joint": 0,
+                                                          "r_hand_middle_1_joint": 1.5707963267948966,
+                                                          "r_hand_middle_2_joint": 0,
+                                                          "r_hand_middle_3_joint": 0,
+                                                          "r_hand_ring_0_joint": 0,
+                                                          "r_hand_ring_1_joint": 1.5707963267948966,
+                                                          "r_hand_ring_2_joint": 0,
+                                                          "r_hand_ring_3_joint": 0,
+                                                          "r_hand_little_0_joint": 0,
+                                                          "r_hand_little_1_joint": 1.5707963267948966,
+                                                          "r_hand_little_2_joint": 0,
+                                                          "r_hand_little_3_joint": 0})
+
 right_gripper.end_effector_type = GripperType.FINGER
 # right_gripper.opening_distance = 0.548
 right_arm.end_effector = right_gripper
