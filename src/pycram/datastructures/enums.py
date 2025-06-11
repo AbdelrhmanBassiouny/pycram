@@ -212,6 +212,7 @@ class GripperState(Enum):
     OPEN = auto()
     CLOSE = auto()
     PINCH = auto()
+    MEDIUM = auto()
 
     def __str__(self):
         return self.name
