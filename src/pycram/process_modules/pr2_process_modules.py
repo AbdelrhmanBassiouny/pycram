@@ -7,11 +7,6 @@ from ..ros import Duration, create_action_client
 from ..ros import  loginfo, logwarn, logdebug
 
 try:
-    from pr2_controllers_msgs.msg import Pr2GripperCommandGoal, Pr2GripperCommandAction, Pr2
-except ImportError:
-    pass
-
-try:
     from ..worlds.multiverse import Multiverse
 except ImportError:
     Multiverse = type(None)
@@ -23,14 +18,10 @@ except ImportError:
         logwarn("Import for control_msgs for gripper in Multiverse failed")
 
 try:
-    from ..worlds import Multiverse
-except ImportError:
-    Multiverse = type(None)
-
-try:
     from pr2_controllers_msgs.msg import Pr2GripperCommandGoal, Pr2GripperCommandAction, Pr2
 except ImportError:
     logdebug("Pr2GripperCommandGoal not found")
+
 
 class Pr2MoveGripperMultiverse(ProcessModule):
     """

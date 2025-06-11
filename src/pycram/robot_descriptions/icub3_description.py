@@ -5,7 +5,7 @@ from ..ros import get_ros_package_path
 
 filename = get_ros_package_path('pycram') + '/resources/robots/' + "iCub3" + '.urdf'
 
-icub_description = RobotDescription("iCub3", "base_footprint", "torso_1", "torso_pitch",
+icub_description = RobotDescription("iCub", "base_footprint", "torso_1", "torso_pitch",
                                     filename)
 
 ################################## Left Arm ##################################
@@ -184,7 +184,8 @@ icub_description.add_kinematic_chain("neck", "chest", "head")
 icub_description.set_neck(yaw_joint="neck_yaw", pitch_joint="neck_pitch", roll_joint="neck_roll")
 
 ################################# Grasps ##################################
-left_orientation = [0.5, 0.5, 0.5, 0.5]
+# left_orientation = [0.5, 0.5, 0.5, 0.5]
+left_orientation = [ 0.5, 0.5, 0.5, 0.5 ]
 left_gripper.update_all_grasp_orientations(left_orientation)
 
 right_orientation = [0, 0, -0.707, 0.707]

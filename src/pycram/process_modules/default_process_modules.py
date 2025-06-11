@@ -538,8 +538,8 @@ class DefaultMoveTCPWaypointsReal(ProcessModule):
 
 class DefaultManager(ProcessModuleManager):
 
-    def __init__(self):
-        super().__init__("default")
+    def __init__(self, name: str = "default"):
+        super().__init__(name)
 
     def navigate(self):
         if ProcessModuleManager.execution_type == ExecutionType.SIMULATED:

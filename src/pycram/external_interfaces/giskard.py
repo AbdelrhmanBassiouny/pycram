@@ -16,6 +16,7 @@ from ..datastructures.dataclasses import MeshVisualShape
 from ..ros import get_service_proxy
 from ..world_concepts.world_object import Object
 from ..robot_description import RobotDescription
+from ..object_descriptors.urdf import ObjectDescription as UrdfObjectDescription
 
 from typing_extensions import List, Dict, Callable, Optional
 from geometry_msgs.msg import PoseStamped as ROSPoseStamped, PointStamped, QuaternionStamped, \
@@ -176,9 +177,9 @@ def sync_worlds(projection: bool = False) -> None:
                                                                RobotDescription.current_robot_description.name)
     giskard_object_names = set(giskard_wrapper.world.get_group_names())
     robot_name = {RobotDescription.current_robot_description.name}
-    if not world_object_names.union(robot_name).issubset(giskard_object_names):
-        giskard_wrapper.world.clear()
-    initial_adding_objects()
+    # if not world_object_names.union(robot_name).issubset(giskard_object_names):
+    #     giskard_wrapper.world.clear()
+    # initial_adding_objects()
 
 
 @init_giskard_interface
@@ -200,7 +201,7 @@ def spawn_object(object: Object) -> None:
 
     :param object: World object that should be spawned
     """
-    if len(object.link_name_to_id) == 1:
+    if object.path is None and len(object.link_name_to_id) == 1:
         geo = object.get_link_geometry(object.root_link.name)
         if isinstance(geo, list):
             geometry = geo[0]
@@ -215,7 +216,7 @@ def spawn_object(object: Object) -> None:
             print(geometry.name)
             giskard_wrapper.world.add_box(object.name, object.size, _pose_to_pose_stamped(object.get_pose()))
 
-    else:
+    elif object.path is not None and object.path.endswith(".urdf"):
         ww = spawn_urdf(object.name, object.path, object.get_pose())
 
         log.loginfo("GiskardSpawnURDF Return value: {} ObjectName:{}".format(ww, object.name))
@@ -499,7 +500,8 @@ def achieve_translation_goal(goal_point: List[float], tip_link: str, root_link: 
     #                                       tip_link, root_link)
     # if par_return:
     #     return par_return
-    giskard_wrapper.motion_goals.add_cartesian_pose(make_point_stamped(goal_point), tip_link, root_link)
+    # giskard_wrapper.motion_goals.add_cartesian_position
+    giskard_wrapper.motion_goals.add_cartesian_position(make_point_stamped(goal_point), tip_link, root_link)
     # giskard_wrapper.add_default_end_motion_conditions()
     return giskard_wrapper.execute()
 
