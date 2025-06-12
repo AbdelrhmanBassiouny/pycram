@@ -1,6 +1,6 @@
+from ..datastructures.enums import Arms, GripperState, GripperType, TorsoState, StaticJointState
 from ..robot_description import RobotDescription, KinematicChainDescription, EndEffectorDescription, \
     RobotDescriptionManager, CameraDescription
-from ..datastructures.enums import Arms, Grasp, GripperState, GripperType, TorsoState, StaticJointState
 from ..ros import get_ros_package_path
 
 filename = get_ros_package_path('pycram') + '/resources/robots/' + "iCub3" + '.urdf'
@@ -12,16 +12,25 @@ icub_description = RobotDescription("iCub", "base_footprint", "torso_1", "torso_
 left_arm = KinematicChainDescription("left", "root_link", "l_hand",
                                      icub_description.urdf_object, arm_type=Arms.LEFT)
 
+# left_arm.add_static_joint_states(StaticJointState.Park, {"torso_roll": 0,
+#                                                          "torso_pitch": 0,
+#                                                          "torso_yaw": 0,
+#                                                          "l_shoulder_pitch": 0,
+#                                                          "l_shoulder_roll": 0,
+#                                                          "l_shoulder_yaw": 0,
+#                                                          "l_elbow": 0,
+#                                                          "l_wrist_prosup": 0,
+#                                                          "l_wrist_pitch": 0,
+#                                                          "l_wrist_yaw": 0})
+
 left_arm.add_static_joint_states(StaticJointState.Park, {"torso_roll": 0,
-                                          "torso_pitch": 0,
-                                          "torso_yaw": 0,
-                                          "l_shoulder_pitch": 0,
-                                          "l_shoulder_roll": 0,
-                                          "l_shoulder_yaw": 0,
-                                          "l_elbow": 0,
-                                          "l_wrist_prosup": 0,
-                                          "l_wrist_pitch": 0,
-                                          "l_wrist_yaw": 0})
+                                                         "torso_pitch": 0.5,
+                                                         "torso_yaw": 0,
+                                                         'l_elbow': 1.309, 'l_shoulder_pitch': -2.0,
+                                                         'l_shoulder_roll': 0.42, 'l_shoulder_yaw': -0.21,
+                                                         'l_wrist_pitch': 0,
+                                                         'l_wrist_prosup': 0,
+                                                         'l_wrist_yaw': 0})
 
 icub_description.add_kinematic_chain_description(left_arm)
 
@@ -77,16 +86,27 @@ left_arm.end_effector = left_gripper
 right_arm = KinematicChainDescription("right", "root_link", "r_hand",
                                       icub_description.urdf_object, arm_type=Arms.RIGHT)
 
-right_arm.add_static_joint_states(StaticJointState.Park, {"torso_roll": 0,
-                                           "torso_pitch": 0,
-                                           "torso_yaw": 0,
-                                           "r_shoulder_pitch": 0,
-                                           "r_shoulder_roll": 0,
-                                           "r_shoulder_yaw": 0,
-                                           "r_elbow": 0,
-                                           "r_wrist_prosup": 0,
-                                           "r_wrist_pitch": 0,
-                                           "r_wrist_yaw": 0})
+# right_arm.add_static_joint_states(StaticJointState.Park, {"torso_roll": 0,
+#                                                           "torso_pitch": 0,
+#                                                           "torso_yaw": 0,
+#                                                           "r_shoulder_pitch": 0,
+#                                                           "r_shoulder_roll": 0,
+#                                                           "r_shoulder_yaw": 0,
+#                                                           "r_elbow": 0,
+#                                                           "r_wrist_prosup": 0,
+#                                                           "r_wrist_pitch": 0,
+#                                                           "r_wrist_yaw": 0})
+
+right_arm.add_static_joint_states(StaticJointState.Park, {
+    'r_shoulder_pitch': 2.0,
+    'r_shoulder_roll': 0.42,
+    'r_shoulder_yaw': -0.21,
+    'r_wrist_pitch': 0,
+    'r_wrist_prosup': 0,
+    'r_wrist_yaw': 0,
+    'torso_pitch': 0.5,
+    'torso_roll': 0,
+    'torso_yaw': 0})
 
 icub_description.add_kinematic_chain_description(right_arm)
 
@@ -114,46 +134,46 @@ right_gripper.add_static_joint_states(GripperState.OPEN, {"r_hand_thumb_0_joint"
                                                           "r_hand_little_2_joint": 0.0,
                                                           "r_hand_little_3_joint": 0.0})
 right_gripper.add_static_joint_states(GripperState.CLOSE, {"r_hand_thumb_0_joint": 1.5707963267948966,
-                                                          "r_hand_thumb_1_joint": 1.5707963267948966,
-                                                          "r_hand_thumb_2_joint": 1.5707963267948966,
-                                                          "r_hand_thumb_3_joint": 1.5707963267948966,
-                                                          "r_hand_index_0_joint": -0.3490658503988659,
-                                                          "r_hand_index_1_joint": 1.5707963267948966,
-                                                          "r_hand_index_2_joint": 1.5707963267948966,
-                                                          "r_hand_index_3_joint": 1.5707963267948966,
-                                                          "r_hand_middle_0_joint": 0.3490658503988659,
-                                                          "r_hand_middle_1_joint": 1.5707963267948966,
-                                                          "r_hand_middle_2_joint": 1.5707963267948966,
-                                                          "r_hand_middle_3_joint": 1.5707963267948966,
-                                                          "r_hand_ring_0_joint": 0.3490658503988659,
-                                                          "r_hand_ring_1_joint": 1.5707963267948966,
-                                                          "r_hand_ring_2_joint": 1.5707963267948966,
-                                                          "r_hand_ring_3_joint": 1.5707963267948966,
-                                                          "r_hand_little_0_joint": 0.3490658503988659,
-                                                          "r_hand_little_1_joint": 1.5707963267948966,
-                                                          "r_hand_little_2_joint": 1.5707963267948966,
-                                                          "r_hand_little_3_joint": 1.5707963267948966})
+                                                           "r_hand_thumb_1_joint": 1.5707963267948966,
+                                                           "r_hand_thumb_2_joint": 1.5707963267948966,
+                                                           "r_hand_thumb_3_joint": 1.5707963267948966,
+                                                           "r_hand_index_0_joint": -0.3490658503988659,
+                                                           "r_hand_index_1_joint": 1.5707963267948966,
+                                                           "r_hand_index_2_joint": 1.5707963267948966,
+                                                           "r_hand_index_3_joint": 1.5707963267948966,
+                                                           "r_hand_middle_0_joint": 0.3490658503988659,
+                                                           "r_hand_middle_1_joint": 1.5707963267948966,
+                                                           "r_hand_middle_2_joint": 1.5707963267948966,
+                                                           "r_hand_middle_3_joint": 1.5707963267948966,
+                                                           "r_hand_ring_0_joint": 0.3490658503988659,
+                                                           "r_hand_ring_1_joint": 1.5707963267948966,
+                                                           "r_hand_ring_2_joint": 1.5707963267948966,
+                                                           "r_hand_ring_3_joint": 1.5707963267948966,
+                                                           "r_hand_little_0_joint": 0.3490658503988659,
+                                                           "r_hand_little_1_joint": 1.5707963267948966,
+                                                           "r_hand_little_2_joint": 1.5707963267948966,
+                                                           "r_hand_little_3_joint": 1.5707963267948966})
 
 right_gripper.add_static_joint_states(GripperState.PINCH, {"r_hand_thumb_0_joint": 1.4,
-                                                          "r_hand_thumb_1_joint": 0,
-                                                          "r_hand_thumb_2_joint": 0,
-                                                          "r_hand_thumb_3_joint": 0,
-                                                          "r_hand_index_0_joint": 0,
-                                                          "r_hand_index_1_joint": 1.5707963267948966,
-                                                          "r_hand_index_2_joint": 0,
-                                                          "r_hand_index_3_joint": 0,
-                                                          "r_hand_middle_0_joint": 0,
-                                                          "r_hand_middle_1_joint": 1.5707963267948966,
-                                                          "r_hand_middle_2_joint": 0,
-                                                          "r_hand_middle_3_joint": 0,
-                                                          "r_hand_ring_0_joint": 0,
-                                                          "r_hand_ring_1_joint": 1.5707963267948966,
-                                                          "r_hand_ring_2_joint": 0,
-                                                          "r_hand_ring_3_joint": 0,
-                                                          "r_hand_little_0_joint": 0,
-                                                          "r_hand_little_1_joint": 1.5707963267948966,
-                                                          "r_hand_little_2_joint": 0,
-                                                          "r_hand_little_3_joint": 0})
+                                                           "r_hand_thumb_1_joint": 0,
+                                                           "r_hand_thumb_2_joint": 0,
+                                                           "r_hand_thumb_3_joint": 0,
+                                                           "r_hand_index_0_joint": 0,
+                                                           "r_hand_index_1_joint": 1.5707963267948966,
+                                                           "r_hand_index_2_joint": 0,
+                                                           "r_hand_index_3_joint": 0,
+                                                           "r_hand_middle_0_joint": 0,
+                                                           "r_hand_middle_1_joint": 1.5707963267948966,
+                                                           "r_hand_middle_2_joint": 0,
+                                                           "r_hand_middle_3_joint": 0,
+                                                           "r_hand_ring_0_joint": 0,
+                                                           "r_hand_ring_1_joint": 1.5707963267948966,
+                                                           "r_hand_ring_2_joint": 0,
+                                                           "r_hand_ring_3_joint": 0,
+                                                           "r_hand_little_0_joint": 0,
+                                                           "r_hand_little_1_joint": 1.5707963267948966,
+                                                           "r_hand_little_2_joint": 0,
+                                                           "r_hand_little_3_joint": 0})
 
 right_gripper.end_effector_type = GripperType.FINGER
 # right_gripper.opening_distance = 0.548
@@ -185,10 +205,10 @@ icub_description.set_neck(yaw_joint="neck_yaw", pitch_joint="neck_pitch", roll_j
 
 ################################# Grasps ##################################
 # left_orientation = [0.5, 0.5, 0.5, 0.5]
-left_orientation = [ 0.5, 0.5, 0.5, 0.5 ]
+left_orientation = [0, 0, 0.707, 0.707]
 left_gripper.update_all_grasp_orientations(left_orientation)
 
-right_orientation = [0, 0, -0.707, 0.707]
+right_orientation = [0, 0, 0.707, 0.707]
 right_gripper.update_all_grasp_orientations(right_orientation)
 
 # Add to RobotDescriptionManager

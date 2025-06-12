@@ -271,13 +271,13 @@ class BulletWorld(World):
         return {joint.name: self.get_joint_position(joint) for joint in joints}
 
     @validate_multiple_object_poses
-    def reset_multiple_objects_base_poses(self, objects: Dict[Object, PoseStamped]) -> bool:
+    def _reset_multiple_objects_base_poses(self, objects: Dict[Object, PoseStamped]) -> bool:
         for obj, pose in objects.items():
             self.reset_object_base_pose(obj, pose)
         return True
 
     @validate_object_pose
-    def reset_object_base_pose(self, obj: Object, pose: PoseStamped) -> bool:
+    def _reset_object_base_pose(self, obj: Object, pose: PoseStamped) -> bool:
         return self._set_object_pose_by_id(obj.id, pose)
 
     def _set_object_pose_by_id(self, obj_id: int, pose: PoseStamped) -> bool:

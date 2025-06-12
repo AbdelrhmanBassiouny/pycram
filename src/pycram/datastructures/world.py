@@ -949,7 +949,7 @@ class World(WorldEntity, ABC):
         pass
 
     def reset_object_base_pose(self, obj: Object, pose: PoseStamped) -> bool:
-        result = self.reset_object_base_pose(obj, pose)
+        result = self._reset_object_base_pose(obj, pose)
         if result:
             if obj in self.on_set_pose_callbacks:
                 for callback in self.on_set_pose_callbacks[obj]:
@@ -969,7 +969,7 @@ class World(WorldEntity, ABC):
         pass
 
     def reset_multiple_objects_base_poses(self, objects: Dict[Object, PoseStamped]) -> bool:
-        result = self.reset_multiple_objects_base_poses(objects)
+        result = self._reset_multiple_objects_base_poses(objects)
         if result:
             for obj, pose in objects.items():
                 if obj in self.on_set_pose_callbacks:
