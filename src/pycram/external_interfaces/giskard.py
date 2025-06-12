@@ -1,4 +1,5 @@
 import json
+import random
 import threading
 
 import sys
@@ -528,25 +529,22 @@ def achieve_cartesian_goal(goal_pose: 'PoseStamped', tip_link: str, root_link: s
     #     return par_return
 
     cart_monitor1 = None
-    cart_goal = 'cart goal 1'
-    sleepy = 'sleepy'
+    cart_goal = f'cart goal {random.randint(0, 1000)}'
     if use_monitor:
-
         cart_monitor1 = giskard_wrapper.monitors.add_cartesian_pose(root_link=root_link, tip_link=tip_link,
                                                                     goal_pose=goal_pose.ros_message(),
                                                                     position_threshold=position_threshold,
                                                                     orientation_threshold=orientation_threshold,
-                                                                    name=cart_goal)
-        giskard_wrapper.monitors.add_sleep(seconds=10, name=sleepy)
-        # end_monitor = giskard_wrapper.monitors.add_local_minimum_reached(start_condition=cart_monitor1)
+                                                                    name='cart goal 1')
+        end_monitor = giskard_wrapper.monitors.add_local_minimum_reached(start_condition=cart_monitor1)
 
     giskard_wrapper.motion_goals.add_cartesian_pose(name=cart_goal, root_link=root_link, tip_link=tip_link,
                                                     goal_pose=goal_pose.ros_message(),
                                                     end_condition=cart_monitor1)
 
     if use_monitor:
-        giskard_wrapper.monitors.add_end_motion(start_condition=f'{cart_goal} or {sleepy}')
-        # giskard_wrapper.monitors.add_end_motion(start_condition=end_monitor)
+        # giskard_wrapper.monitors.add_end_motion(start_condition=f'{cart_goal} or {sleepy}')
+        giskard_wrapper.monitors.add_end_motion(start_condition=end_monitor)
 
     giskard_wrapper.motion_goals.avoid_all_collisions()
     if grippers_that_can_collide is not None:
@@ -575,13 +573,21 @@ def achieve_straight_cartesian_goal(goal_pose: 'PoseStamped', tip_link: str,
     #                                       tip_link, root_link)
     # if par_return:
     #     return par_return
+    name = f"cart goal {random.randint(0, 1000)}"
+    cart_monitor1 = giskard_wrapper.monitors.add_cartesian_pose(root_link=root_link, tip_link=tip_link,
+                                                                goal_pose=goal_pose.ros_message(),
+                                                                position_threshold=0.02,
+                                                                orientation_threshold=0.02,
+                                                                name=name)
+    end_monitor = giskard_wrapper.monitors.add_local_minimum_reached(start_condition=cart_monitor1)
 
     giskard_wrapper.motion_goals.avoid_all_collisions()
     if grippers_that_can_collide is not None:
         allow_gripper_collision(grippers_that_can_collide)
 
     giskard_wrapper.motion_goals.add_cartesian_pose_straight(_pose_to_pose_stamped(goal_pose), tip_link, root_link)
-    giskard_wrapper.add_default_end_motion_conditions()
+    giskard_wrapper.monitors.add_end_motion(start_condition=end_monitor)
+    # giskard_wrapper.add_default_end_motion_conditions()
 
     return giskard_wrapper.execute()
 

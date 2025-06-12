@@ -429,7 +429,7 @@ class ReachToPickUpAction(ActionDescription):
 
         self.move_gripper_to_pose(target_pre_pose)
 
-        self.move_gripper_to_pose(target_pose, MovementType.STRAIGHT_CARTESIAN)
+        # self.move_gripper_to_pose(target_pose, MovementType.STRAIGHT_CARTESIAN)
 
         # Remove the vis axis from the world if it was added
         World.current_world.remove_vis_axis()
@@ -614,6 +614,7 @@ class PlaceAction(ActionDescription):
     def plan(self) -> None:
         target_pose = self.object_designator.attachments[
             World.robot].get_child_link_target_pose_given_parent(self.target_location)
+        World.current_world.add_vis_axis(target_pose)
         if self.insert is True:
             MoveTCPWiggleMotion(target_pose, self.arm).perform()
         else:
