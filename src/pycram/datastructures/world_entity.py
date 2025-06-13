@@ -241,6 +241,7 @@ class PhysicalBody(WorldEntity):
             bodies = self.get_adjacent_bodies_using_closest_points(max_distance)
         else:
             bodies = self.get_adjacent_bodies_using_rays(max_distance)
+        self.contained_in_bodies = []
         for body in bodies:
             if body in excluded_bodies:
                 continue

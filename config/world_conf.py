@@ -63,7 +63,7 @@ class WorldConfig:
     simulator, so it is recommended to set this to False in PyBullet.
     """
 
-    let_pycram_move_attached_objects: bool = True
+    let_pycram_move_attached_objects: bool = False
     let_pycram_handle_spawning: bool = True
     let_pycram_handle_world_sync: bool = True
     """

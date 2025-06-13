@@ -5,6 +5,7 @@ import abc
 import datetime
 import inspect
 import math
+from copy import copy
 from dataclasses import dataclass, field
 from datetime import timedelta
 from functools import cached_property
@@ -600,6 +601,10 @@ class PlaceAction(ActionDescription):
     Attempts to insert the robot's end effector into a hole or slot using micro-corrective
     motions ("wiggle") to handle alignment errors or contact uncertainty.
     """
+    pre_place_vertical_distance: Optional[float] = field(init=False, repr=False, default=0.1)
+    """
+    A pose to go to before the object is placed at the target_location.
+    """
     _pre_perform_callbacks = []
     """
     List to save the callbacks which should be called before performing the action.
@@ -614,7 +619,10 @@ class PlaceAction(ActionDescription):
     def plan(self) -> None:
         target_pose = self.object_designator.attachments[
             World.robot].get_child_link_target_pose_given_parent(self.target_location)
-        World.current_world.add_vis_axis(target_pose)
+        pre_place_pose = copy(target_pose)
+        pre_place_pose.position.z += self.pre_place_vertical_distance
+        MoveTCPMotion(pre_place_pose, self.arm).perform()
+        # World.current_world.add_vis_axis(target_pose)
         if self.insert:
             MoveTCPWiggleMotion(target_pose, self.arm).perform()
         else:
