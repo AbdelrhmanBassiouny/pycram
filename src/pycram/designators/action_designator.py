@@ -615,7 +615,7 @@ class PlaceAction(ActionDescription):
         target_pose = self.object_designator.attachments[
             World.robot].get_child_link_target_pose_given_parent(self.target_location)
         World.current_world.add_vis_axis(target_pose)
-        if self.insert is True:
+        if self.insert:
             MoveTCPWiggleMotion(target_pose, self.arm).perform()
         else:
             MoveTCPMotion(target_pose, self.arm).perform()
