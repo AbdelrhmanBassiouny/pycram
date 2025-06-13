@@ -224,7 +224,8 @@ class PhysicalBody(WorldEntity):
     def update_containment(self, excluded_bodies: Optional[List[PhysicalBody]] = None,
                            candidate_selection_method: AdjacentBodyMethod = AdjacentBodyMethod.ClosestPoints,
                            max_distance: float = 0.5,
-                           intersection_ratio: float = 1) -> None:
+                           intersection_ratio: float = 1,
+                           only_bodies: Optional[List[PhysicalBody]] = None) -> None:
         """
         Update the containment of the object by checking if it is contained in other bodies,
          excluding the given excluded bodies.
@@ -237,11 +238,14 @@ class PhysicalBody(WorldEntity):
         """
         excluded_bodies = [] if excluded_bodies is None else excluded_bodies
         excluded_bodies.append(self)
-        if candidate_selection_method == AdjacentBodyMethod.ClosestPoints:
-            bodies = self.get_adjacent_bodies_using_closest_points(max_distance)
+        if only_bodies is None:
+            if candidate_selection_method == AdjacentBodyMethod.ClosestPoints:
+                bodies = self.get_adjacent_bodies_using_closest_points(max_distance)
+            else:
+                bodies = self.get_adjacent_bodies_using_rays(max_distance)
         else:
-            bodies = self.get_adjacent_bodies_using_rays(max_distance)
-        self.contained_in_bodies = []
+            bodies = only_bodies
+        # self.contained_in_bodies = []
         for body in bodies:
             if body in excluded_bodies:
                 continue
@@ -263,6 +267,8 @@ class PhysicalBody(WorldEntity):
                 logdebug(f"{body.name} contains {self.name}")
                 body.contained_bodies.append(self)
                 self.contained_in_bodies.append(body)
+            elif body in self.contained_in_bodies:
+                self.contained_in_bodies.remove(body)
 
     def get_adjacent_bodies_using_closest_points(self, max_distance: float = 0.5) -> List[PhysicalBody]:
         """

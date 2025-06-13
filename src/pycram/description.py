@@ -495,7 +495,7 @@ class Link(PhysicalBody, ObjectEntity, LinkDescription, ABC):
         return self.origin.to_transform_stamped(self.tf_frame)
 
     def __copy__(self):
-        return Link(self.id, self.description, self.object)
+        return self.__class__(self.id, self.description, self.object)
 
 
 class RootLink(Link, ABC):
