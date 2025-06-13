@@ -1228,7 +1228,7 @@ class ContactPointsList(list):
         :param obj: An instance of the Object class that represents the object.
         :return: A list of float vectors that represent the normals of the object.
         """
-        return self.get_points_of_object(obj).get_normals()
+        return self.get_points_of_body(obj).get_normals()
 
     def get_normals(self) -> List[List[float]]:
         """

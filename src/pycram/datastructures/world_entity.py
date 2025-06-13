@@ -291,8 +291,7 @@ class PhysicalBody(WorldEntity):
         if max_distance <= 0:
             raise ValueError("The distance should be greater than zero.")
 
-        rays_start, rays_end = self.cast_rays_in_all_directions(max_distance)
-        rays_results = self.world.ray_test_batch(rays_start, rays_end)
+        rays_results = self.cast_rays_in_all_directions(max_distance)
 
         bodies_ids = set([(rr.obj_id, rr.link_id) for rr in rays_results if rr.intersected])
 
@@ -313,7 +312,7 @@ class PhysicalBody(WorldEntity):
 
         rays_start, rays_end = [], []
         for i in range(3):
-            i_rays_start, i_rays_end = self.get_axis_rays(origin, min_[i], max_[i], i, max_distance)
+            i_rays_start, i_rays_end = self.get_axis_rays(origin, min_[i] - 0.001, max_[i] + 0.001, i, max_distance)
             rays_start.extend(i_rays_start)
             rays_end.extend(i_rays_end)
 

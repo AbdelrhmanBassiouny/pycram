@@ -601,7 +601,7 @@ class PlaceAction(ActionDescription):
     Attempts to insert the robot's end effector into a hole or slot using micro-corrective
     motions ("wiggle") to handle alignment errors or contact uncertainty.
     """
-    pre_place_vertical_distance: Optional[float] = field(init=False, repr=False, default=0.1)
+    pre_place_vertical_distance: float = field(init=False, repr=False, default=0.05)
     """
     A pose to go to before the object is placed at the target_location.
     """
@@ -679,11 +679,12 @@ class PlaceAction(ActionDescription):
     @with_plan
     def description(cls, object_designator: Union[Iterable[Object], Object],
                     target_location: Union[Iterable[PoseStamped], PoseStamped],
-                    arm: Union[Iterable[Arms], Arms] = None, insert: bool = False) -> PartialDesignator[
+                    arm: Union[Iterable[Arms], Arms] = None, insert: bool = False,
+                    pre_place_vertical_distance: float = 0.08) -> PartialDesignator[
         Type[PlaceAction]]:
         return PartialDesignator(PlaceAction, object_designator=object_designator,
                                  target_location=target_location,
-                                 arm=arm, insert=insert)
+                                 arm=arm, insert=insert, pre_place_vertical_distance=pre_place_vertical_distance)
 
 
 @has_parameters
