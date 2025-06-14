@@ -28,7 +28,7 @@ from pycram.ros import logging as log
 
 try:
     from giskardpy_ros.python_interface.python_interface import GiskardWrapper as GiskardWrapper
-    from giskard_msgs.msg import WorldBody, MoveResult, CollisionEntry, LinkName
+    from giskard_msgs.msg import WorldBody, GiskardError as MoveResult, CollisionEntry, LinkName
     from giskardpy.motion_statechart.tasks.mixing import SpiralMixing
     from giskardpy.motion_statechart.tasks.task import WEIGHT_BELOW_CA
 except ModuleNotFoundError as e:
@@ -75,7 +75,7 @@ def init_giskard_interface(func: Callable) -> Callable:
 
     def wrapper(*args, **kwargs):
         from giskardpy_ros.python_interface.python_interface import GiskardWrapper as GiskardWrapper
-        from giskard_msgs.msg import WorldBody, MoveResult, CollisionEntry
+        from giskard_msgs.msg import WorldBody, GiskardError as MoveResult, CollisionEntry
         from geometry_msgs.msg import PoseStamped as ROSPoseStamped, PointStamped, QuaternionStamped, Vector3Stamped
 
         global giskard_wrapper
