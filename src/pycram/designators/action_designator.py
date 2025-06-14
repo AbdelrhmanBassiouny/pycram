@@ -601,7 +601,7 @@ class PlaceAction(ActionDescription):
     Attempts to insert the robot's end effector into a hole or slot using micro-corrective
     motions ("wiggle") to handle alignment errors or contact uncertainty.
     """
-    pre_place_vertical_distance: float = field(init=False, repr=False, default=0.05)
+    pre_place_vertical_distance: float = 0.05
     """
     A pose to go to before the object is placed at the target_location.
     """
