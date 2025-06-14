@@ -17,7 +17,7 @@ from pycrap.ontologies import PhysicalObject, Robot, Floor, Apartment
 from pycrap.ontologies.crax.rules import HierarchicalContainment, CRAXRule
 from pycrap.ontology_wrapper import OntologyWrapper
 from semantic_world.world import World as SemanticWorld
-from semantic_world.adapters.multi_parser import MultiParser
+from semantic_world.adapters.urdf import URDFParser
 from semantic_world.views.world_rdr import world_rdr as views_classifier
 from ..cache_manager import CacheManager
 from ..config.world_conf import WorldConfig
@@ -272,7 +272,8 @@ class World(WorldEntity, ABC):
         self.object_lock.release()
         self.invoke_on_add_object_callbacks(obj)
         if obj.path is not None:
-            self.semantic_world.merge_world(MultiParser(obj.path).parse())
+            self.semantic_world.merge_world(URDFParser(obj.path).parse())
+            self.update_views()
 
     def update_views(self):
         self.views = views_classifier.classify(self.semantic_world)
