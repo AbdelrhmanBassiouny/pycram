@@ -5,7 +5,7 @@ import abc
 import datetime
 import inspect
 import math
-from copy import copy
+from copy import copy, deepcopy
 from dataclasses import dataclass, field
 from datetime import timedelta
 from functools import cached_property
@@ -425,6 +425,7 @@ class ReachToPickUpAction(ActionDescription):
         target_pre_pose = LocalTransformer().translate_pose_along_local_axis(target_pose,
                                                                              self.end_effector.get_approach_axis(),
                                                                              -self.object_designator.get_approach_offset())
+        target_pose.position.z += 0.05
 
         MoveGripperMotion(motion=GripperState.OPEN, gripper=self.arm).perform()
 
@@ -619,7 +620,7 @@ class PlaceAction(ActionDescription):
     def plan(self) -> None:
         target_pose = self.object_designator.attachments[
             World.robot].get_child_link_target_pose_given_parent(self.target_location)
-        pre_place_pose = copy(target_pose)
+        pre_place_pose = deepcopy(target_pose)
         pre_place_pose.position.z += self.pre_place_vertical_distance
         MoveTCPMotion(pre_place_pose, self.arm).perform()
         # World.current_world.add_vis_axis(target_pose)
@@ -680,7 +681,7 @@ class PlaceAction(ActionDescription):
     def description(cls, object_designator: Union[Iterable[Object], Object],
                     target_location: Union[Iterable[PoseStamped], PoseStamped],
                     arm: Union[Iterable[Arms], Arms] = None, insert: bool = False,
-                    pre_place_vertical_distance: float = 0.08) -> PartialDesignator[
+                    pre_place_vertical_distance: float = 0.05) -> PartialDesignator[
         Type[PlaceAction]]:
         return PartialDesignator(PlaceAction, object_designator=object_designator,
                                  target_location=target_location,

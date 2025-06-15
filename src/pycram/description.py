@@ -889,6 +889,7 @@ class ObjectDescription(EntityDescription):
                 if not os.path.exists(path):
                     os.makedirs(os.path.dirname(path), exist_ok=True)
                 mesh.export(path)
+            color = Color() if color is None else color
             self.generate_from_mesh_file(path, name, save_path=save_path, color=color)
         elif extension == self.get_file_extension():
             self.generate_from_description_file(path, save_path=save_path)
