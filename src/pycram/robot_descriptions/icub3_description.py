@@ -205,10 +205,11 @@ icub_description.set_neck(yaw_joint="neck_yaw", pitch_joint="neck_pitch", roll_j
 
 ################################# Grasps ##################################
 # left_orientation = [0.5, 0.5, 0.5, 0.5]
-left_orientation = [0, 0, 0, 1]
+left_orientation = [0, 0, 0.7071068, 0.7071068]
 left_gripper.update_all_grasp_orientations(left_orientation)
 
 right_orientation = [0, 0, 1, 0]
+# right_orientation = [0, 0, 0.7071068, 0.7071068]
 right_gripper.update_all_grasp_orientations(right_orientation)
 
 # Add to RobotDescriptionManager

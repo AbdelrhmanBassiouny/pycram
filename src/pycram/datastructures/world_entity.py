@@ -23,6 +23,7 @@ if TYPE_CHECKING:
     from ..datastructures.world import World
     from ..world_concepts.world_object import Object
     from .pose import PoseStamped, GeoQuaternion as Quaternion, TransformStamped, Point
+    from ..robot_description import EndEffectorDescription
 
 
 class StateEntity:
@@ -601,7 +602,7 @@ class PhysicalBody(WorldEntity):
 
         return grasp_configs
 
-    def get_grasp_pose(self, end_effector, grasp: GraspDescription) -> Pose:
+    def get_grasp_pose(self, end_effector: EndEffectorDescription, grasp: GraspDescription) -> Pose:
         """
         Translates the grasp pose of the object using the desired grasp description and object knowledge.
         Leaves the orientation untouched.
@@ -625,9 +626,12 @@ class PhysicalBody(WorldEntity):
             grasp_pose = PoseStamped.from_list(grasp_pose.position.to_list(), self.orientation.to_list())
 
         if self.world.robot_description.name == "iCub":
-            grasp_pose.position.z += self.get_rotated_bounding_box().height / 2 + 0.01
-            grasp_pose.position.x -= 0.01
-            grasp_pose.position.y -= self.get_rotated_bounding_box().depth / 2 + 0.01
+            grasp_pose.position.z += self.get_rotated_bounding_box().height / 2 + 0.005
+            if end_effector.tool_frame == "r_gripper_tool_frame":
+                # grasp_pose.position.x -= 0.01
+                grasp_pose.position.y -= self.get_rotated_bounding_box().depth / 2 + 0.01
+            else:
+                grasp_pose.position.y += self.get_rotated_bounding_box().depth / 2 + 0.01
 
         return grasp_pose
 
