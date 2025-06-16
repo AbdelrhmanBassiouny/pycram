@@ -15,8 +15,8 @@ from .dataclasses import State, ContactPointsList, ClosestPointsList, Color, Phy
 from .enums import AdjacentBodyMethod, AxisIdentifier, Arms, Grasp
 from .mixins import HasConcept
 from ..local_transformer import LocalTransformer
-from ..ros import Time, logdebug
-from .pose import GraspDescription, Vector3, PoseStamped
+from ..ros import Time, logdebug, logerr
+from .pose import GraspDescription, Vector3, PoseStamped, Quaternion
 from .grasp import PreferredGraspAlignment
 
 if TYPE_CHECKING:
@@ -626,13 +626,14 @@ class PhysicalBody(WorldEntity):
             grasp_pose = PoseStamped.from_list(grasp_pose.position.to_list(), self.orientation.to_list())
 
         if self.world.robot_description.name == "iCub":
+            grasp_pose.orientation = Quaternion.from_list([0, 0, 0, 1])
             grasp_pose.position.z += self.get_rotated_bounding_box().height / 2 + 0.005
             if end_effector.tool_frame == "r_gripper_tool_frame":
                 # grasp_pose.position.x -= 0.01
                 grasp_pose.position.y -= self.get_rotated_bounding_box().depth / 2 + 0.01
             else:
                 grasp_pose.position.y += self.get_rotated_bounding_box().depth / 2 + 0.01
-
+        logerr(f"Grasp Pose = {grasp_pose}")
         return grasp_pose
 
     def get_approach_offset(self) -> float:
