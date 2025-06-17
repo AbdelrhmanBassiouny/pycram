@@ -620,6 +620,7 @@ class PlaceAction(ActionDescription):
     def plan(self) -> None:
         target_pose = self.object_designator.attachments[
             World.robot].get_child_link_target_pose_given_parent(self.target_location)
+        target_pose.orientation = self.gripper_link.pose.orientation
         pre_place_pose = deepcopy(target_pose)
         pre_place_pose.position.z += self.pre_place_vertical_distance
         MoveTCPMotion(pre_place_pose, self.arm).perform()

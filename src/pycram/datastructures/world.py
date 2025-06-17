@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 import threading
+from threading import RLock
 import time
 import signal
 from abc import ABC, abstractmethod
@@ -86,6 +87,15 @@ class World(WorldEntity, ABC):
     The ontology of this world.
     """
 
+    world_lock: RLock = RLock()
+    """
+    A lock for trhead safe access to the world.
+    """
+    prospection_world_lock: RLock = RLock()
+    """
+    A lock for trhead safe access to the prospection world.
+    """
+
     def __init__(self, mode: WorldMode = WorldMode.DIRECT, is_prospection: bool = False, clear_cache: bool = False,
                  prospection_mode: WorldMode = WorldMode.DIRECT, id_: int = -1, **kwargs):
         """
@@ -100,6 +110,8 @@ class World(WorldEntity, ABC):
         :param prospection_mode: The mode of the prospection world.
         :param id_: The unique id of the world.
         """
+        if is_prospection:
+            self.world_lock = self.prospection_world_lock
         self.is_prospection_world: bool = is_prospection
         self.ontology = OntologyWrapper()
 
