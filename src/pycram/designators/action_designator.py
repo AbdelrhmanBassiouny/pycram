@@ -24,7 +24,7 @@ from ..datastructures.enums import Arms, Grasp, GripperState, DetectionTechnique
     TorsoState, StaticJointState, Frame, FindBodyInRegionMethod, ContainerManipulationType
 from ..datastructures.grasp import GraspDescription
 from ..datastructures.partial_designator import PartialDesignator
-from ..datastructures.pose import PoseStamped
+from ..datastructures.pose import PoseStamped, Quaternion
 from ..datastructures.world import UseProspectionWorld
 from ..datastructures.world import World
 from ..description import Joint, Link, ObjectDescription
@@ -51,7 +51,7 @@ from ..datastructures.world import World
 
 from ..robot_description import RobotDescription, KinematicChainDescription
 from ..ros import logwarn
-from ..tf_transformations import quaternion_from_euler
+from ..tf_transformations import quaternion_from_euler, euler_from_quaternion
 from ..validation.error_checkers import PoseErrorChecker
 from ..validation.goal_validator import create_multiple_joint_goal_validator
 from ..world_concepts.world_object import Object
@@ -621,8 +621,11 @@ class PlaceAction(ActionDescription):
         target_pose = self.object_designator.attachments[
             World.robot].get_child_link_target_pose_given_parent(self.target_location)
         target_pose.position = self.target_location.position - (self.object_designator.pose.position - self.gripper_link.position)
+        # quat = quaternion_from_euler(0, 0, euler_from_quaternion(self.target_location.orientation)[-1])
+        # orientation = Quaternion(*quat)
         logerr(f"Target Placing pose: {target_pose}")
         target_pose.orientation = self.gripper_link.pose.orientation
+        # target_pose.orientation = orientation
         logerr(f"Target Placing pose: {target_pose}")
         pre_place_pose = deepcopy(target_pose)
         pre_place_pose.position.z += self.pre_place_vertical_distance
