@@ -40,7 +40,7 @@ from ..language import SequentialPlan, TryInOrderPlan
 from ..local_transformer import LocalTransformer
 from ..plan import with_plan
 from ..robot_description import EndEffectorDescription
-from ..ros import sleep
+from ..ros import sleep, logerr
 from ..config.action_conf import ActionConfig
 
 from ..datastructures.enums import Arms, Grasp, GripperState, DetectionTechnique, DetectionState, MovementType, \
@@ -538,7 +538,7 @@ class PickUpAction(ActionDescription):
 
     def lift_object(self, distance: float = 0.1):
         lift_to_pose = self.gripper_pose()
-        lift_to_pose.pose.position.z += distance
+        lift_to_pose.position.z += distance
         MoveTCPMotion(lift_to_pose, self.arm, allow_gripper_collision=True).perform()
 
     def gripper_pose(self) -> PoseStamped:
@@ -620,7 +620,10 @@ class PlaceAction(ActionDescription):
     def plan(self) -> None:
         target_pose = self.object_designator.attachments[
             World.robot].get_child_link_target_pose_given_parent(self.target_location)
+        target_pose.position = self.target_location.position - (self.object_designator.pose.position - self.gripper_link.position)
+        logerr(f"Target Placing pose: {target_pose}")
         target_pose.orientation = self.gripper_link.pose.orientation
+        logerr(f"Target Placing pose: {target_pose}")
         pre_place_pose = deepcopy(target_pose)
         pre_place_pose.position.z += self.pre_place_vertical_distance
         MoveTCPMotion(pre_place_pose, self.arm).perform()
