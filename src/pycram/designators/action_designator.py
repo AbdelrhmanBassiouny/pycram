@@ -425,13 +425,12 @@ class ReachToPickUpAction(ActionDescription):
         target_pre_pose = LocalTransformer().translate_pose_along_local_axis(target_pose,
                                                                              self.end_effector.get_approach_axis(),
                                                                              -self.object_designator.get_approach_offset())
-        target_pose.position.z += 0.05
 
         MoveGripperMotion(motion=GripperState.OPEN, gripper=self.arm).perform()
 
         self.move_gripper_to_pose(target_pre_pose)
 
-        # self.move_gripper_to_pose(target_pose, MovementType.STRAIGHT_CARTESIAN)
+        self.move_gripper_to_pose(target_pose)
 
         # Remove the vis axis from the world if it was added
         World.current_world.remove_vis_axis()

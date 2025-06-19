@@ -4,6 +4,8 @@ from ..designators.motion_designator import MoveGripperMotion
 from ..process_module import ProcessModule, ProcessModuleManager
 import rospy
 from std_srvs.srv import SetBool, SetBoolRequest
+from ..datastructures.world import World
+from ..robot_description import RobotDescription
 
 
 class ICubManager(DefaultManager):
@@ -28,6 +30,11 @@ class MoveGripperReal(ProcessModule):
         self.left_hand_service = rospy.ServiceProxy("/grasp_with_left_hand", SetBool)
 
     def _execute(self, designator: MoveGripperMotion):
+        arm_chain = RobotDescription.current_robot_description.get_arm_chain(designator.gripper)
+        if designator.motion == GripperState.CLOSE:
+            World.robot.set_multiple_joint_positions(arm_chain.get_static_gripper_state(GripperState.PINCH))
+        else:
+            World.robot.set_multiple_joint_positions(arm_chain.get_static_gripper_state(GripperState.OPEN))
         if designator.gripper == Arms.RIGHT:
             service_name = "/grasp_with_right_hand"
             service = self.right_hand_service

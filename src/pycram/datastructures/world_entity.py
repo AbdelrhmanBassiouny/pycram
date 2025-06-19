@@ -627,12 +627,13 @@ class PhysicalBody(WorldEntity):
 
         if self.world.robot_description.name == "iCub":
             grasp_pose.orientation = Quaternion.from_list([0, 0, 0, 1])
-            grasp_pose.position.z += self.get_rotated_bounding_box().height / 2 + 0.005
+            grasp_pose.position.z += 0.05
             if end_effector.tool_frame == "r_gripper_tool_frame":
-                grasp_pose.position.x -= 0.01
-                grasp_pose.position.y -= self.get_rotated_bounding_box().depth / 2 + 0.01
+                grasp_pose.position.x += 0.0032
+                grasp_pose.position.y += -0.03
             else:
-                grasp_pose.position.y += self.get_rotated_bounding_box().depth / 2 + 0.01
+                grasp_pose.position.x += 0.0032
+                grasp_pose.position.y += 0.03
         logerr(f"Grasp Pose = {grasp_pose}")
         return grasp_pose
 
