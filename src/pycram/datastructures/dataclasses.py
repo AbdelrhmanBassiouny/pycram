@@ -21,7 +21,7 @@ from typing_extensions import List, Optional, Tuple, Callable, Dict, Any, Union,
 from pycrap.ontologies import PhysicalObject
 from .enums import JointType, Shape, VirtualMobileBaseJointName, Grasp, AxisIdentifier
 from .pose import PoseStamped, Point, TransformStamped
-from ..ros import logwarn, logwarn_once
+from ..ros import logwarn, logwarn_once, logerr
 from ..utils import classproperty
 from ..validation.error_checkers import calculate_joint_position_error, is_error_acceptable
 
@@ -281,6 +281,16 @@ class BoundingBox:
     The z variable for the random-events interface.
     """
 
+    def get_axis_interval(self, axis: AxisIdentifier) -> SimpleInterval:
+        if axis == AxisIdentifier.X:
+            return self.x_interval
+        elif axis == AxisIdentifier.Y:
+            return self.y_interval
+        elif axis == AxisIdentifier.Z:
+            return self.z_interval
+        else:
+            raise ValueError("Invalid axis")
+
     def __hash__(self):
         # The hash should be this since comparing those via hash is checking if those are the same and not just equal
         return id(self)
@@ -311,23 +321,52 @@ class BoundingBox:
         """
         :return: The bounding box as a random event.
         """
-        return SimpleEvent({self.x_variable: self.x_interval,
-                            self.y_variable: self.y_interval,
-                            self.z_variable: self.z_interval})
+        return self.get_simple_event_for_axis([AxisIdentifier.X, AxisIdentifier.Y, AxisIdentifier.Y])
+
+    def get_simple_event_for_axis(self, axis_to_use: List[AxisIdentifier]) -> SimpleEvent:
+        intervals_dict = {self.get_axis_variable(axis): self.get_axis_interval(axis) for axis in axis_to_use}
+        return SimpleEvent(intervals_dict)
 
     @classmethod
-    def from_simple_event(cls, simple_event: SimpleEvent):
+    def get_axis_variable(cls, axis: AxisIdentifier) -> Continuous:
+        if axis == AxisIdentifier.X:
+            return cls.x_variable
+        elif axis == AxisIdentifier.Y:
+            return cls.y_variable
+        elif axis == AxisIdentifier.Z:
+            return cls.z_variable
+        else:
+            raise ValueError("Invalid axis")
+
+    @classmethod
+    def from_simple_event(cls, simple_event: SimpleEvent, axis_to_use: Optional[List[AxisIdentifier]] = None) -> List[BoundingBox]:
         """
         Create a list of bounding boxes from a simple random event.
 
         :param simple_event: The random event.
+        :param axis_to_use: The axis to use for the bounding box.
         :return: The list of bounding boxes.
         """
+        if axis_to_use is None:
+            axis_to_use = [AxisIdentifier.X, AxisIdentifier.Y, AxisIdentifier.Z]
+            x_idx, y_idx, z_idx = 0, 1, 2
+        else:
+            x_idx = [i for i, axis in enumerate(axis_to_use) if axis == AxisIdentifier.X]
+            y_idx = [i for i, axis in enumerate(axis_to_use) if axis == AxisIdentifier.Y]
+            z_idx = [i for i, axis in enumerate(axis_to_use) if axis == AxisIdentifier.Z]
+            x_idx = x_idx[0] if len(x_idx) == 1 else None
+            y_idx = y_idx[0] if len(y_idx) == 1 else None
+            z_idx = z_idx[0] if len(z_idx) == 1 else None
+        axis_sets = [simple_event[cls.get_axis_variable(axis)].simple_sets for axis in axis_to_use if cls.get_axis_variable(axis) in simple_event]
         result = []
-        for x, y, z in itertools.product(simple_event[cls.x_variable].simple_sets,
-                                         simple_event[cls.y_variable].simple_sets,
-                                         simple_event[cls.z_variable].simple_sets):
-            result.append(cls(x.lower, y.lower, z.lower, x.upper, y.upper, z.upper))
+        for axis_intervals in itertools.product(*axis_sets):
+            x_lower = axis_intervals[x_idx].lower if x_idx is not None and len(axis_intervals) > x_idx else 0
+            x_upper = axis_intervals[x_idx].upper if x_idx is not None and len(axis_intervals) > x_idx else 1
+            y_lower = axis_intervals[y_idx].lower if y_idx is not None and len(axis_intervals) > y_idx else 0
+            y_upper = axis_intervals[y_idx].upper if y_idx is not None and len(axis_intervals) > y_idx else 1
+            z_lower = axis_intervals[z_idx].lower if z_idx is not None and len(axis_intervals) > z_idx else 0
+            z_upper = axis_intervals[z_idx].upper if z_idx is not None and len(axis_intervals) > z_idx else 1
+            result.append(cls(x_lower, y_lower, z_lower, x_upper, y_upper, z_upper))
         return result
 
     @classmethod
@@ -340,14 +379,18 @@ class BoundingBox:
         """
         return [box for simple_event in event.simple_sets for box in cls.from_simple_event(simple_event)]
 
-    def intersection_with(self, other: BoundingBox) -> Optional[BoundingBox]:
+    def intersection_with(self, other: BoundingBox, axis_to_use: Optional[List[AxisIdentifier]] = None) -> Optional[BoundingBox]:
         """
         Compute the intersection of two bounding boxes.
 
         :param other: The other bounding box.
+        :param axis_to_use: The axis to use for computing the intersection.
         :return: The intersection of the two bounding boxes or None if they do not intersect.
         """
-        result = self.simple_event.intersection_with(other.simple_event)
+        if axis_to_use is not None:
+            result = self.get_simple_event_for_axis(axis_to_use).intersection_with(other.get_simple_event_for_axis(axis_to_use))
+        else:
+            result = self.simple_event.intersection_with(other.simple_event)
         if result.is_empty():
             return None
         return self.__class__.from_simple_event(result)[0]
