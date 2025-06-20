@@ -84,9 +84,9 @@ left_gripper.add_static_joint_states(GripperState.CLOSE, {"l_hand_thumb_0_joint"
                                                           "l_hand_little_2_joint": 1.5707963267948966,
                                                           "l_hand_little_3_joint": 1.5707963267948966})
 left_gripper.add_static_joint_states(GripperState.PINCH, {"l_hand_thumb_0_joint": 1.26,
-                                                           "l_hand_thumb_1_joint": 0.267,
-                                                           "l_hand_thumb_2_joint": 0.353,
-                                                           "l_hand_thumb_3_joint": 0.676,
+                                                           "l_hand_thumb_1_joint": 0.267*0.9,
+                                                           "l_hand_thumb_2_joint": 0.353*0.9,
+                                                           "l_hand_thumb_3_joint": 0.676*0.9,
                                                            "l_hand_index_0_joint": 0,
                                                            "l_hand_index_1_joint": 0.856,
                                                            "l_hand_index_2_joint": 0.613,
