@@ -809,6 +809,10 @@ class VisualShape(ABC):
     rgba_color: Color
     visual_frame_position: List[float]
 
+    @property
+    def size(self):
+        return list(self.shape_data().values())
+
     @abstractmethod
     def shape_data(self) -> Dict[str, Any]:
         """
@@ -844,10 +848,6 @@ class BoxVisualShape(VisualShape):
     @property
     def visual_geometry_type(self) -> Shape:
         return Shape.BOX
-
-    @property
-    def size(self) -> List[float]:
-        return self.half_extents
 
     def get_axis_aligned_bounding_box(self) -> AxisAlignedBoundingBox:
         """
