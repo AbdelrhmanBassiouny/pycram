@@ -9,8 +9,8 @@ repositories:
     version: master
   pycram:
     type: git
-    url: https://github.com/cram2/pycram.git
-    version: dev
+    url: https://github.com/AbdelrhmanBassiouny/pycram.git
+    version: icub_demo
   kdl_ik_services:
     type: git
     url: https://github.com/cram2/kdl_ik_service.git
