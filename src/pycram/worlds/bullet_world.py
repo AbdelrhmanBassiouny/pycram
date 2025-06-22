@@ -71,6 +71,30 @@ class BulletWorld(World):
             _ = Object("floor", Floor, "plane.urdf",
                        world=self)
 
+    def draw_bounding_box(self, aabb_min, aabb_max, color=[1, 0, 0], width=2, duration=0):
+        min_x, min_y, min_z = aabb_min
+        max_x, max_y, max_z = aabb_max
+
+        corners = [
+            [min_x, min_y, min_z],
+            [max_x, min_y, min_z],
+            [max_x, max_y, min_z],
+            [min_x, max_y, min_z],
+            [min_x, min_y, max_z],
+            [max_x, min_y, max_z],
+            [max_x, max_y, max_z],
+            [min_x, max_y, max_z],
+        ]
+
+        edges = [
+            (0, 1), (1, 2), (2, 3), (3, 0),  # bottom face
+            (4, 5), (5, 6), (6, 7), (7, 4),  # top face
+            (0, 4), (1, 5), (2, 6), (3, 7),  # vertical edges
+        ]
+
+        for start, end in edges:
+            p.addUserDebugLine(corners[start], corners[end], color, width, duration)
+
     def add_multiverse_resources(self):
         """
         Add the Multiverse resources to the start of the data directories of the BulletWorld such they are searched

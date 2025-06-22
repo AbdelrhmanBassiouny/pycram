@@ -226,7 +226,8 @@ class PhysicalBody(WorldEntity):
                            candidate_selection_method: AdjacentBodyMethod = AdjacentBodyMethod.ClosestPoints,
                            max_distance: float = 0.5,
                            intersection_ratio: float = 1,
-                           only_bodies: Optional[List[PhysicalBody]] = None) -> None:
+                           only_bodies: Optional[List[PhysicalBody]] = None,
+                           axis_to_use: Optional[List[AxisIdentifier]] = None) -> None:
         """
         Update the containment of the object by checking if it is contained in other bodies,
          excluding the given excluded bodies.
@@ -236,9 +237,13 @@ class PhysicalBody(WorldEntity):
         :param max_distance: The maximum distance from this body to other bodies to consider a body as a candidate.
         :param intersection_ratio: The ratio of the intersection of the bounding boxes of this body and the candidate
         body in one dimension, while the other two dimensions must be full intersection.
+        :param only_bodies: The bodies that should be used for the containment check.
+        :param axis_to_use: The axis to use when calculating the containment.
         """
         excluded_bodies = [] if excluded_bodies is None else excluded_bodies
         excluded_bodies.append(self)
+        floor = self.world.get_object_by_name("floor")
+        excluded_bodies.extend([floor, floor.root_link])
         if only_bodies is None:
             if candidate_selection_method == AdjacentBodyMethod.ClosestPoints:
                 bodies = self.get_adjacent_bodies_using_closest_points(max_distance)
@@ -252,15 +257,15 @@ class PhysicalBody(WorldEntity):
                 continue
             is_contained = False
             bbox = self.get_axis_aligned_bounding_box()
-            if intersection_ratio < 1:
-                intersection = bbox.intersection_with(body.get_axis_aligned_bounding_box())
+            if intersection_ratio < 1 or axis_to_use is not None:
+                intersection = bbox.intersection_with(body.get_axis_aligned_bounding_box(), axis_to_use=axis_to_use)
                 if intersection is None:
                     continue
                 b_depth, b_width, b_height = bbox.depth, bbox.width, bbox.height
                 i_depth, i_width, i_height = intersection.depth, intersection.width, intersection.height
-                if abs(i_depth - b_depth) <= 1e-4 and abs(i_width - b_width) <= 1e-4 and i_height >= b_height * intersection_ratio \
-                    or abs(i_depth - b_depth) <= 1e-4 and i_width >= b_width * intersection_ratio and abs(i_height - b_height) <= 1e-4 \
-                    or i_depth >= b_depth * intersection_ratio and abs(i_width - b_width) <= 1e-4 and abs(i_height - b_height) <= 1e-4:
+                if abs(i_depth - b_depth) <= 1e-4 and abs(i_width - b_width) <= 1e-4 and i_height >= (b_height * intersection_ratio) - 1e-4 \
+                    or abs(i_depth - b_depth) <= 1e-4 and i_width >= (b_width * intersection_ratio) - 1e-4 and abs(i_height - b_height) <= 1e-4 \
+                    or i_depth >= (b_depth * intersection_ratio) - 1e-4 and abs(i_width - b_width) <= 1e-4 and abs(i_height - b_height) <= 1e-4:
                     is_contained = True
             elif body.get_axis_aligned_bounding_box().contains_box(bbox):
                 is_contained = True
@@ -627,12 +632,13 @@ class PhysicalBody(WorldEntity):
 
         if self.world.robot_description.name == "iCub":
             grasp_pose.orientation = Quaternion.from_list([0, 0, 0, 1])
-            grasp_pose.position.z += self.get_rotated_bounding_box().height / 2 + 0.005
+            grasp_pose.position.z += 0.05
             if end_effector.tool_frame == "r_gripper_tool_frame":
-                # grasp_pose.position.x -= 0.01
-                grasp_pose.position.y -= self.get_rotated_bounding_box().depth / 2 + 0.01
+                grasp_pose.position.x += 0.0032
+                grasp_pose.position.y += -0.03
             else:
-                grasp_pose.position.y += self.get_rotated_bounding_box().depth / 2 + 0.01
+                grasp_pose.position.x += 0.0032
+                grasp_pose.position.y += 0.03
         logerr(f"Grasp Pose = {grasp_pose}")
         return grasp_pose
 

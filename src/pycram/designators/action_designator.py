@@ -24,7 +24,7 @@ from ..datastructures.enums import Arms, Grasp, GripperState, DetectionTechnique
     TorsoState, StaticJointState, Frame, FindBodyInRegionMethod, ContainerManipulationType
 from ..datastructures.grasp import GraspDescription
 from ..datastructures.partial_designator import PartialDesignator
-from ..datastructures.pose import PoseStamped
+from ..datastructures.pose import PoseStamped, Quaternion
 from ..datastructures.world import UseProspectionWorld
 from ..datastructures.world import World
 from ..description import Joint, Link, ObjectDescription
@@ -40,7 +40,7 @@ from ..language import SequentialPlan, TryInOrderPlan
 from ..local_transformer import LocalTransformer
 from ..plan import with_plan
 from ..robot_description import EndEffectorDescription
-from ..ros import sleep
+from ..ros import sleep, logerr
 from ..config.action_conf import ActionConfig
 
 from ..datastructures.enums import Arms, Grasp, GripperState, DetectionTechnique, DetectionState, MovementType, \
@@ -51,7 +51,7 @@ from ..datastructures.world import World
 
 from ..robot_description import RobotDescription, KinematicChainDescription
 from ..ros import logwarn
-from ..tf_transformations import quaternion_from_euler
+from ..tf_transformations import quaternion_from_euler, euler_from_quaternion
 from ..validation.error_checkers import PoseErrorChecker
 from ..validation.goal_validator import create_multiple_joint_goal_validator
 from ..world_concepts.world_object import Object
@@ -425,13 +425,12 @@ class ReachToPickUpAction(ActionDescription):
         target_pre_pose = LocalTransformer().translate_pose_along_local_axis(target_pose,
                                                                              self.end_effector.get_approach_axis(),
                                                                              -self.object_designator.get_approach_offset())
-        target_pose.position.z += 0.05
 
         MoveGripperMotion(motion=GripperState.OPEN, gripper=self.arm).perform()
 
         self.move_gripper_to_pose(target_pre_pose)
 
-        # self.move_gripper_to_pose(target_pose, MovementType.STRAIGHT_CARTESIAN)
+        self.move_gripper_to_pose(target_pose)
 
         # Remove the vis axis from the world if it was added
         World.current_world.remove_vis_axis()
@@ -538,7 +537,7 @@ class PickUpAction(ActionDescription):
 
     def lift_object(self, distance: float = 0.1):
         lift_to_pose = self.gripper_pose()
-        lift_to_pose.pose.position.z += distance
+        lift_to_pose.position.z += distance
         MoveTCPMotion(lift_to_pose, self.arm, allow_gripper_collision=True).perform()
 
     def gripper_pose(self) -> PoseStamped:
@@ -620,7 +619,13 @@ class PlaceAction(ActionDescription):
     def plan(self) -> None:
         target_pose = self.object_designator.attachments[
             World.robot].get_child_link_target_pose_given_parent(self.target_location)
+        target_pose.position = self.target_location.position - (self.object_designator.pose.position - self.gripper_link.position)
+        # quat = quaternion_from_euler(0, 0, euler_from_quaternion(self.target_location.orientation)[-1])
+        # orientation = Quaternion(*quat)
+        logerr(f"Target Placing pose: {target_pose}")
         target_pose.orientation = self.gripper_link.pose.orientation
+        # target_pose.orientation = orientation
+        logerr(f"Target Placing pose: {target_pose}")
         pre_place_pose = deepcopy(target_pose)
         pre_place_pose.position.z += self.pre_place_vertical_distance
         MoveTCPMotion(pre_place_pose, self.arm).perform()
