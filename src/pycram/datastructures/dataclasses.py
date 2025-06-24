@@ -321,7 +321,7 @@ class BoundingBox:
         """
         :return: The bounding box as a random event.
         """
-        return self.get_simple_event_for_axis([AxisIdentifier.X, AxisIdentifier.Y, AxisIdentifier.Y])
+        return self.get_simple_event_for_axis([AxisIdentifier.X, AxisIdentifier.Y, AxisIdentifier.Z])
 
     def get_simple_event_for_axis(self, axis_to_use: List[AxisIdentifier]) -> SimpleEvent:
         intervals_dict = {self.get_axis_variable(axis): self.get_axis_interval(axis) for axis in axis_to_use}
