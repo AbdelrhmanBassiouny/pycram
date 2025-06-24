@@ -227,7 +227,7 @@ class PhysicalBody(WorldEntity):
                            max_distance: float = 0.5,
                            intersection_ratio: float = 1,
                            only_bodies: Optional[List[PhysicalBody]] = None,
-                           axis_to_use: Optional[List[AxisIdentifier]] = None) -> None:
+                           axis_to_use: Optional[List[AxisIdentifier]] = None) -> List[PhysicalBody]:
         """
         Update the containment of the object by checking if it is contained in other bodies,
          excluding the given excluded bodies.
@@ -239,6 +239,7 @@ class PhysicalBody(WorldEntity):
         body in one dimension, while the other two dimensions must be full intersection.
         :param only_bodies: The bodies that should be used for the containment check.
         :param axis_to_use: The axis to use when calculating the containment.
+        :return: The bodies that contain this body.
         """
         excluded_bodies = [] if excluded_bodies is None else excluded_bodies
         excluded_bodies.append(self)
@@ -347,16 +348,18 @@ class PhysicalBody(WorldEntity):
         ray_right_end = [max_val + max_distance if i == idx else origin[i] for i in range(3)]
         return [ray_left_start, ray_right_start], [ray_left_end, ray_right_end]
 
-    def contains_body(self, body: PhysicalBody, update: bool = False) -> bool:
+    def contains_body(self, body: PhysicalBody, update: bool = False, intersection_ratio: float = 1) -> bool:
         """
         Check if this body contains another body.
 
         :param body: The physical body to check if it is contained by this body.
         :param update: If true, update the containment
+        :param intersection_ratio: The ratio of the intersection between the two bodies.
         :return: True if the body contains the other body, otherwise False.
         """
         if update:
-            return self.get_axis_aligned_bounding_box().contains_box(body.get_axis_aligned_bounding_box())
+            bodies = body.update_containment(only_bodies=[self], intersection_ratio=intersection_ratio)
+            return len(bodies) > 0
         return body in self.contained_bodies or (body.parent_entity and body.parent_entity in self.contained_bodies)
 
     def is_contained_in_body(self, body: PhysicalBody) -> bool:
