@@ -252,6 +252,7 @@ class PhysicalBody(WorldEntity):
         else:
             bodies = only_bodies
         # self.contained_in_bodies = []
+        contained_in_bodies = []
         for body in bodies:
             if body in excluded_bodies:
                 continue
@@ -271,10 +272,12 @@ class PhysicalBody(WorldEntity):
                 is_contained = True
             if is_contained:
                 logdebug(f"{body.name} contains {self.name}")
+                contained_in_bodies.append(body)
                 body.contained_bodies.append(self)
                 self.contained_in_bodies.append(body)
             elif body in self.contained_in_bodies:
                 self.contained_in_bodies.remove(body)
+        return contained_in_bodies
 
     def get_adjacent_bodies_using_closest_points(self, max_distance: float = 0.5) -> List[PhysicalBody]:
         """
