@@ -273,10 +273,12 @@ class PhysicalBody(WorldEntity):
             if is_contained:
                 logdebug(f"{body.name} contains {self.name}")
                 contained_in_bodies.append(body)
-                body.contained_bodies.append(self)
-                self.contained_in_bodies.append(body)
+                if intersection_ratio == 1 and axis_to_use is None:
+                    body.contained_bodies.append(self)
+                    self.contained_in_bodies.append(body)
             elif body in self.contained_in_bodies:
-                self.contained_in_bodies.remove(body)
+                if intersection_ratio == 1 and axis_to_use is None:
+                    self.contained_in_bodies.remove(body)
         return contained_in_bodies
 
     def get_adjacent_bodies_using_closest_points(self, max_distance: float = 0.5) -> List[PhysicalBody]:
@@ -345,13 +347,16 @@ class PhysicalBody(WorldEntity):
         ray_right_end = [max_val + max_distance if i == idx else origin[i] for i in range(3)]
         return [ray_left_start, ray_right_start], [ray_left_end, ray_right_end]
 
-    def contains_body(self, body: PhysicalBody) -> bool:
+    def contains_body(self, body: PhysicalBody, update: bool = False) -> bool:
         """
         Check if this body contains another body.
 
         :param body: The physical body to check if it is contained by this body.
+        :param update: If true, update the containment
         :return: True if the body contains the other body, otherwise False.
         """
+        if update:
+            return self.get_axis_aligned_bounding_box().contains_box(body.get_axis_aligned_bounding_box())
         return body in self.contained_bodies or (body.parent_entity and body.parent_entity in self.contained_bodies)
 
     def is_contained_in_body(self, body: PhysicalBody) -> bool:
