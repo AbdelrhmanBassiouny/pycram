@@ -1123,10 +1123,14 @@ class World(WorldEntity, ABC):
 
         :param remove_saved_states: Whether to remove the saved states.
         """
-        # try:
-        #     self.reset_world(remove_saved_states)
-        # except Exception as e:
-        #     logwarn(f"Error while Resetting world: {e}")
+        try:
+            self.join_threads()
+        except Exception as e:
+            logwarn(f"Error while joining threads: {e}")
+        try:
+            self.reset_world(remove_saved_states)
+        except Exception as e:
+            logwarn(f"Error while Resetting world: {e}")
         try:
             self.remove_all_objects()
         except Exception as e:
@@ -1140,10 +1144,6 @@ class World(WorldEntity, ABC):
         except Exception as e:
             logwarn(f"Error while disconnecting from physics server: {e}")
         self.reset_robot()
-        try:
-            self.join_threads()
-        except Exception as e:
-            logwarn(f"Error while joining threads: {e}")
         try:
             if self.ontology:
                 self.ontology.destroy_individuals()
