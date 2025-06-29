@@ -250,7 +250,8 @@ class World(WorldEntity, ABC):
 
         :param callback: The callback.
         """
-        self.on_add_object_callbacks.remove(callback)
+        if callback in self.on_add_object_callbacks:
+            self.on_add_object_callbacks.remove(callback)
 
     @classmethod
     def get_cache_dir(cls) -> str:
