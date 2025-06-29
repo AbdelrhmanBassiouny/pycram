@@ -10,6 +10,7 @@ from abc import ABC, abstractmethod
 from copy import copy
 
 import numpy as np
+from pycram.ros import loginfo
 from trimesh import Trimesh
 from typing_extensions import List, Optional, Dict, Tuple, Callable, TYPE_CHECKING, Union, Type, deprecated
 
@@ -1163,8 +1164,11 @@ class World(WorldEntity, ABC):
         """
         Signal handler for graceful exit of the world when a signal is received (e.g., SIGINT).
         """
-        self.exit()
-        print("Exiting World ...")
+        try:
+            loginfo("Exiting World ...")
+            self.exit()
+        except Exception as e:
+            logwarn(f"Error while exiting world: {e}")
         exit(0)
 
     @abstractmethod
