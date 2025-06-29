@@ -1121,14 +1121,32 @@ class World(WorldEntity, ABC):
 
         :param remove_saved_states: Whether to remove the saved states.
         """
-        self.reset_world(remove_saved_states)
-        self.remove_all_objects()
-        self.exit_prospection_world_if_exists()
-        self.disconnect_from_physics_server()
+        try:
+            self.reset_world(remove_saved_states)
+        except Exception as e:
+            logwarn(f"Error while Resetting world: {e}")
+        try:
+            self.remove_all_objects()
+        except Exception as e:
+            logwarn(f"Error while removing all objects: {e}")
+        try:
+            self.exit_prospection_world_if_exists()
+        except Exception as e:
+            logwarn(f"Error while exiting prospection world: {e}")
+        try:
+            self.disconnect_from_physics_server()
+        except Exception as e:
+            logwarn(f"Error while disconnecting from physics server: {e}")
         self.reset_robot()
-        self.join_threads()
-        if self.ontology:
-            self.ontology.destroy_individuals()
+        try:
+            self.join_threads()
+        except Exception as e:
+            logwarn(f"Error while joining threads: {e}")
+        try:
+            if self.ontology:
+                self.ontology.destroy_individuals()
+        except Exception as e:
+            logwarn(f"Error while destroying ontology individuals: {e}")
         if World.current_world == self:
             World.current_world = None
 
