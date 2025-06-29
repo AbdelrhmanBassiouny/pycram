@@ -1123,10 +1123,10 @@ class World(WorldEntity, ABC):
 
         :param remove_saved_states: Whether to remove the saved states.
         """
-        try:
-            self.reset_world(remove_saved_states)
-        except Exception as e:
-            logwarn(f"Error while Resetting world: {e}")
+        # try:
+        #     self.reset_world(remove_saved_states)
+        # except Exception as e:
+        #     logwarn(f"Error while Resetting world: {e}")
         try:
             self.remove_all_objects()
         except Exception as e:
