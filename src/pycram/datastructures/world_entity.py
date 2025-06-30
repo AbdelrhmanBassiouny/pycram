@@ -202,14 +202,6 @@ class PhysicalBody(WorldEntity, ABC):
                           self.velocity.copy() if self.velocity is not None else None,
                           self.get_axis_aligned_bounding_box())
 
-    @property
-    @abstractmethod
-    def geometry(self) -> List[VisualShape]:
-        """
-        The geometry type of the collision element of this link.
-        """
-        pass
-
     def reset_concepts(self):
         super().reset_concepts()
         for part in self.parts.values():
