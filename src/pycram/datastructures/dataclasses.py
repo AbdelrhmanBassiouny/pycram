@@ -1608,7 +1608,7 @@ class ReasoningResult:
     reasoned_parameter: Dict[str, Any] = field(default_factory=dict)
 
 
-
+@dataclass
 class FrozenWorldState:
     """
     A frozen world is a snapshot of the world. It is used to store the world state in a way that it can be
