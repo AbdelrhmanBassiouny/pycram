@@ -198,7 +198,7 @@ class PhysicalBody(WorldEntity, ABC):
         :return: A frozen copy of this body.
         """
         return FrozenBody(self.name, self.ontology_concept, self.pose.copy(),
-                          self.geometry, self.is_moving, self.is_translating, self.is_rotating,
+                          self.is_moving, self.is_translating, self.is_rotating,
                           self.velocity.copy() if self.velocity is not None else None,
                           self.get_axis_aligned_bounding_box())
 

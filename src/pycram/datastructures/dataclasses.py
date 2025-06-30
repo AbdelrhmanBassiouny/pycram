@@ -1637,10 +1637,6 @@ class FrozenBody:
     """
     The pose of the frozen body
     """
-    geometry: List[VisualShape] = field(default_factory=list)
-    """
-    The geometry of the frozen body, this is a list of visual shapes that represent the body shape.
-    """
     is_moving: Optional[bool] = None
     """
     Whether the frozen body is moving or not
@@ -1662,8 +1658,6 @@ class FrozenBody:
     The bounding box of the frozen body
     """
 
-FrozenLink = FrozenBody
-
 
 @dataclass
 class FrozenObject(FrozenBody):
@@ -1684,6 +1678,28 @@ class FrozenObject(FrozenBody):
     """
     A dictionary of all joints, with the joint name as key and the joint object as value
     """
+
+@dataclass
+class FrozenLink(FrozenBody):
+    """
+    A frozen link is a snapshot of a link. It is used to store the link state in a way that it can be serialized and
+    deserialized.
+    """
+    geometry: List[VisualShape] = field(default_factory=list)
+    """
+    The geometry of the frozen body, this is a list of visual shapes that represent the body shape.
+    """
+
+    @classmethod
+    def from_frozen_body(cls, frozen_body: FrozenBody, geometry: Optional[List[VisualShape]] = None) -> FrozenLink:
+        """
+        Create a FrozenLink from a FrozenBody and a list of VisualShapes.
+
+        :param frozen_body: The FrozenBody to create the FrozenLink from.
+        :param geometry: The list of VisualShapes representing the geometry of the link.
+        :return: A FrozenLink instance.
+        """
+        return cls(**frozen_body.__dict__, geometry=geometry if geometry is not None else [])
 
 @dataclass
 class FrozenJoint:

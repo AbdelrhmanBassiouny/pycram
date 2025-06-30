@@ -16,7 +16,7 @@ import pycrap
 import pycrap.ontologies
 from pycrap.ontologies import Base, has_child_link, has_parent_link
 from .datastructures.dataclasses import JointState, AxisAlignedBoundingBox, Color, LinkState, VisualShape, \
-    MeshVisualShape, RotatedBoundingBox, FrozenLink
+    MeshVisualShape, RotatedBoundingBox, FrozenLink, FrozenBody
 from .datastructures.enums import JointType
 from .datastructures.pose import PoseStamped, TransformStamped, Point
 from .datastructures.world_entity import WorldEntity, PhysicalBody
@@ -56,7 +56,7 @@ class EntityDescription(ABC):
         pass
 
 
-class LinkDescription(EntityDescription, ABC):
+class LinkDescription(EntityDescription):
     """
     A link description of an object.
     """
@@ -64,6 +64,14 @@ class LinkDescription(EntityDescription, ABC):
     def __init__(self, parsed_link_description: Any, mesh_dir: Optional[str] = None):
         super().__init__(parsed_link_description)
         self.mesh_dir = mesh_dir
+
+    @property
+    @abstractmethod
+    def geometry(self) -> Union[List[VisualShape], VisualShape, None]:
+        """
+        The geometry type of the collision element of this link.
+        """
+        pass
 
 
 class JointDescription(EntityDescription):
@@ -197,6 +205,14 @@ class Link(PhysicalBody, ObjectEntity, LinkDescription, ABC):
         LinkDescription.__init__(self, link_description.parsed_description, link_description.mesh_dir)
         self.local_transformer: LocalTransformer = LocalTransformer()
         self.constraint_ids: Dict[Link, int] = {}
+
+    def frozen_copy(self) -> FrozenLink:
+        """
+        Create a frozen copy of this link, which is a copy that cannot be modified.
+        :return: A FrozenLink object containing the frozen state of this link.
+        """
+        frozen_body = PhysicalBody.frozen_copy(self)
+        return FrozenLink.from_frozen_body(frozen_body, self.geometry)
 
     def reset(self):
         """
