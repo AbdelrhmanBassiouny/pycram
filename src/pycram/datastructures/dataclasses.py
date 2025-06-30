@@ -1609,6 +1609,18 @@ class ReasoningResult:
 
 
 
+class FrozenWorldState:
+    """
+    A frozen world is a snapshot of the world. It is used to store the world state in a way that it can be
+    serialized and deserialized.
+    """
+    objects: List[FrozenObject]
+    """
+    A list of frozen objects representing the world state.
+    """
+
+
+
 @dataclass
 class FrozenObject:
 

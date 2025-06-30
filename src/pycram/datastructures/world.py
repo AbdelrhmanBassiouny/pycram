@@ -18,6 +18,7 @@ import pycrap
 from pycrap.ontologies import PhysicalObject, Robot, Floor, Apartment
 from pycrap.ontologies.crax.rules import HierarchicalContainment, CRAXRule
 from pycrap.ontology_wrapper import OntologyWrapper
+from .dataclasses import FrozenWorldState
 from ..cache_manager import CacheManager
 from ..config.world_conf import WorldConfig
 from ..datastructures.dataclasses import (Color, AxisAlignedBoundingBox, CollisionCallbacks,
@@ -1116,6 +1117,14 @@ class World(WorldEntity, ABC):
         :return: True if the robot has been set, False otherwise.
         """
         return World.robot is not None
+
+    def frozen_copy(self) -> FrozenWorldState:
+        """
+        Create a frozen copy of the current world state.
+
+        :return: A FrozenWorldState object containing the current state of the world.
+        """
+        return FrozenWorldState([obj.frozen_copy() for obj in self.objects])
 
     def exit(self, remove_saved_states: bool = True) -> None:
         """
