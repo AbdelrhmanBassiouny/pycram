@@ -16,7 +16,7 @@ import pycrap
 import pycrap.ontologies
 from pycrap.ontologies import Base, has_child_link, has_parent_link
 from .datastructures.dataclasses import JointState, AxisAlignedBoundingBox, Color, LinkState, VisualShape, \
-    MeshVisualShape, RotatedBoundingBox
+    MeshVisualShape, RotatedBoundingBox, FrozenLink
 from .datastructures.enums import JointType
 from .datastructures.pose import PoseStamped, TransformStamped, Point
 from .datastructures.world_entity import WorldEntity, PhysicalBody
@@ -205,6 +205,9 @@ class Link(PhysicalBody, ObjectEntity, LinkDescription, ABC):
         LinkDescription.__init__(self, link_description.parsed_description, link_description.mesh_dir)
         self.local_transformer: LocalTransformer = LocalTransformer()
         self.constraint_ids: Dict[Link, int] = {}
+
+    def frozen_copy(self) -> FrozenLink:
+        return FrozenLink(self.name, self.pose, self.geometry)
 
     def reset(self):
         """
