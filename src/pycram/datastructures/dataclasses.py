@@ -20,7 +20,7 @@ from typing_extensions import List, Optional, Tuple, Callable, Dict, Any, Union,
 
 from pycrap.ontologies import PhysicalObject
 from .enums import JointType, Shape, VirtualMobileBaseJointName, Grasp, AxisIdentifier
-from .pose import PoseStamped, Point, TransformStamped
+from .pose import PoseStamped, Point, TransformStamped, Vector3
 from ..ros import logwarn, logwarn_once, logerr
 from ..utils import classproperty
 from ..validation.error_checkers import calculate_joint_position_error, is_error_acceptable
@@ -1178,7 +1178,7 @@ class LateralFriction:
     Dataclass for storing the information of the lateral friction.
     """
     lateral_friction: float
-    lateral_friction_direction: List[float]
+    lateral_friction_direction: Vector3
 
 
 @dataclass
@@ -1188,16 +1188,16 @@ class ContactPoint:
     """
     body_a: PhysicalBody
     body_b: PhysicalBody
-    position_on_body_a: Optional[List[float]] = None
-    position_on_body_b: Optional[List[float]] = None
-    normal_on_body_b: Optional[List[float]] = None  # the contact normal vector on object b pointing towards object a
+    position_on_body_a: Optional[Vector3] = None
+    position_on_body_b: Optional[Vector3] = None
+    normal_on_body_b: Optional[Vector3] = None  # the contact normal vector on object b pointing towards object a
     distance: Optional[float] = None  # distance between the two objects (+ve for separation, -ve for penetration)
     normal_force: Optional[float] = None  # normal force applied during last step simulation
     lateral_friction_1: Optional[LateralFriction] = None
     lateral_friction_2: Optional[LateralFriction] = None
 
     @property
-    def normal(self) -> List[float]:
+    def normal(self) -> Vector3:
         return self.normal_on_body_b
 
     @property
@@ -1264,7 +1264,7 @@ class ContactPointsList(list):
         """
         return body in list(obj.links.values()) or body == obj
 
-    def get_normals_of_object(self, obj: Object) -> List[List[float]]:
+    def get_normals_of_object(self, obj: Object) -> List[Vector3]:
         """
         Get the normals of the object.
 
@@ -1273,7 +1273,7 @@ class ContactPointsList(list):
         """
         return self.get_points_of_body(obj).get_normals()
 
-    def get_normals(self) -> List[List[float]]:
+    def get_normals(self) -> List[Vector3]:
         """
         Get the normals of the points.
 

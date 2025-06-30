@@ -8,6 +8,8 @@ import time
 import numpy as np
 import pycram_bullet as p
 import yaml
+from pycram.datastructures.pose import Vector3
+
 from pycram.ros import logerr
 from pycram.world_reasoning import contact
 from typing_extensions import List, Optional, Dict, Any, Callable, Tuple
@@ -299,13 +301,13 @@ class BulletWorld(World):
         """
         return {"body_a": self.get_object_by_id(point[1]).get_link_by_id(point[3]),
                 "body_b": self.get_object_by_id(point[2]).get_link_by_id(point[4]),
-                "position_on_body_a": point[5],
-                "position_on_body_b": point[6],
-                "normal_on_body_b": point[7],
+                "position_on_body_a": Vector3(*point[5]),
+                "position_on_body_b": Vector3(*point[6]),
+                "normal_on_body_b": Vector3(*point[7]),
                 "distance": point[8],
                 "normal_force": point[9],
-                "lateral_friction_1": LateralFriction(point[10], point[11]),
-                "lateral_friction_2": LateralFriction(point[12], point[13])}
+                "lateral_friction_1": LateralFriction(point[10], Vector3(*point[11])),
+                "lateral_friction_2": LateralFriction(point[12], Vector3(*point[13]))}
 
     @validate_multiple_joint_positions
     def _set_multiple_joint_positions(self, joint_positions: Dict[Joint, float]) -> bool:

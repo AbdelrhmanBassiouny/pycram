@@ -453,15 +453,15 @@ class Multiverse(World):
             link_a = self.get_link_given_object_and_link_names(contact["bodyUniqueNameA"], contact["linkNameA"])
             link_b = self.get_link_given_object_and_link_names(contact["bodyUniqueNameB"], contact["linkNameB"])
             contact_point = ContactPoint(body_a=link_a, body_b=link_b,
-                                         position_on_body_a=contact["positionOnA"].tolist(),
-                                         position_on_body_b=contact["positionOnB"].tolist(),
-                                         normal_on_body_b=contact["contactNormalOnB"].tolist(),
+                                         position_on_body_a=Vector3(*contact["positionOnA"].tolist()),
+                                         position_on_body_b=Vector3(*contact["positionOnB"].tolist()),
+                                         normal_on_body_b=Vector3(*contact["contactNormalOnB"].tolist()),
                                          distance=float(contact["contactDistance"]),
                                          normal_force=float(contact["normalForce"]),
                                          lateral_friction_1=LateralFriction(float(contact["lateralFriction1"]),
-                                                                            contact["lateralFrictionDir1"].tolist()),
+                                                                            Vector3(*contact["lateralFrictionDir1"].tolist())),
                                          lateral_friction_2=LateralFriction(float(contact["lateralFriction2"]),
-                                                                            contact["lateralFrictionDir2"].tolist()))
+                                                                            Vector3(*contact["lateralFrictionDir2"].tolist())))
             contact_points_list.append(contact_point)
         return contact_points_list
 
