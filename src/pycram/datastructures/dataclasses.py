@@ -1619,19 +1619,55 @@ class FrozenWorldState:
     A list of frozen objects representing the world state.
     """
 
-
-
 @dataclass
-class FrozenObject:
-
+class FrozenBody:
+    """
+    A frozen body is a snapshot of a physical body. It is used to store the body state in a way that it can be
+    serialized and deserialized.
+    """
     name: str
     """
-    Name of this Object
+    Name of the frozen body
     """
     concept: Type[PhysicalObject]
     """
     The Concept of the Object as the PyCRAP concept
     """
+    pose: PoseStamped = field(default_factory=PoseStamped)
+    """
+    The pose of the frozen body
+    """
+    geometry: List[VisualShape] = field(default_factory=list)
+    """
+    The geometry of the frozen body, this is a list of visual shapes that represent the body shape.
+    """
+    is_moving: Optional[bool] = None
+    """
+    Whether the frozen body is moving or not
+    """
+    is_translating: Optional[bool] = None
+    """
+    Whether the frozen body is translating or not
+    """
+    is_rotating: Optional[bool] = None
+    """
+    Whether the frozen body is rotating or not
+    """
+    velocity: Optional[Vector3] = None
+    """
+    The velocity of the frozen body
+    """
+    bounding_box: Optional[AxisAlignedBoundingBox] = None
+    """
+    The bounding box of the frozen body
+    """
+
+FrozenLink = FrozenBody
+
+
+@dataclass
+class FrozenObject(FrozenBody):
+
     path: Optional[str] = None
     """
     The path to the source file
@@ -1639,10 +1675,6 @@ class FrozenObject:
     description: Optional[ObjectDescription] = None
     """
     The description of the object, this is a combination of links and joints
-    """
-    pose: Optional[PoseStamped] = field(default_factory=PoseStamped)
-    """
-    The pose at which this object is placed
     """
     links: Optional[Dict[str, FrozenLink]] = None
     """
@@ -1653,24 +1685,7 @@ class FrozenObject:
     A dictionary of all joints, with the joint name as key and the joint object as value
     """
 
-
-@dataclass(frozen=True)
-class FrozenLink:
-    name: str
-    """
-    Name of this FrozenLink
-    """
-    pose: PoseStamped
-    """
-    Pose of this Link in the world frame
-    """
-    geometry: Union[VisualShape, List[VisualShape]]
-    """
-    The geometry of this link
-    """
-
-
-@dataclass(frozen=True)
+@dataclass
 class FrozenJoint:
     name: str
     """

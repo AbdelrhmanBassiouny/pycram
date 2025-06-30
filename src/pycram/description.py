@@ -56,7 +56,7 @@ class EntityDescription(ABC):
         pass
 
 
-class LinkDescription(EntityDescription):
+class LinkDescription(EntityDescription, ABC):
     """
     A link description of an object.
     """
@@ -64,14 +64,6 @@ class LinkDescription(EntityDescription):
     def __init__(self, parsed_link_description: Any, mesh_dir: Optional[str] = None):
         super().__init__(parsed_link_description)
         self.mesh_dir = mesh_dir
-
-    @property
-    @abstractmethod
-    def geometry(self) -> Union[List[VisualShape], VisualShape, None]:
-        """
-        The geometry type of the collision element of this link.
-        """
-        pass
 
 
 class JointDescription(EntityDescription):
@@ -205,9 +197,6 @@ class Link(PhysicalBody, ObjectEntity, LinkDescription, ABC):
         LinkDescription.__init__(self, link_description.parsed_description, link_description.mesh_dir)
         self.local_transformer: LocalTransformer = LocalTransformer()
         self.constraint_ids: Dict[Link, int] = {}
-
-    def frozen_copy(self) -> FrozenLink:
-        return FrozenLink(self.name, self.pose, self.geometry)
 
     def reset(self):
         """

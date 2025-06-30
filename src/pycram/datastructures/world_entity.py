@@ -11,7 +11,7 @@ from typing_extensions import TYPE_CHECKING, Dict, Optional, List, deprecated, U
 
 from pycrap.ontologies import PhysicalObject, Room, Location, Robot, Floor
 from .dataclasses import State, ContactPointsList, ClosestPointsList, Color, PhysicalBodyState, \
-    AxisAlignedBoundingBox, RotatedBoundingBox, RayResult
+    AxisAlignedBoundingBox, RotatedBoundingBox, RayResult, VisualShape, FrozenBody
 from .enums import AdjacentBodyMethod, AxisIdentifier, Arms, Grasp
 from .mixins import HasConcept
 from ..local_transformer import LocalTransformer
@@ -170,7 +170,7 @@ class WorldEntity(StateEntity, HasConcept):
         return hash((self.id, self.name, self.parent_entity))
 
 
-class PhysicalBody(WorldEntity):
+class PhysicalBody(WorldEntity, ABC):
     """
     A class that represents a physical body in the world that has some related physical properties.
     """
@@ -188,6 +188,27 @@ class PhysicalBody(WorldEntity):
         self.latest_known_parts: Dict[str, PhysicalBody] = {}
         self.contained_bodies: List[PhysicalBody] = []
         self.contained_in_bodies: List[PhysicalBody] = []
+
+
+    def frozen_copy(self) -> FrozenBody:
+        """
+        Returns a frozen copy of this body, which is a copy that cannot be modified.
+        This is used to save the state of the world.
+
+        :return: A frozen copy of this body.
+        """
+        return FrozenBody(self.name, self.ontology_concept, self.pose.copy(),
+                          self.geometry, self.is_moving, self.is_translating, self.is_rotating,
+                          self.velocity.copy() if self.velocity is not None else None,
+                          self.get_axis_aligned_bounding_box())
+
+    @property
+    @abstractmethod
+    def geometry(self) -> List[VisualShape]:
+        """
+        The geometry type of the collision element of this link.
+        """
+        pass
 
     def reset_concepts(self):
         super().reset_concepts()

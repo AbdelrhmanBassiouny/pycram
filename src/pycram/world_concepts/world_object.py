@@ -473,7 +473,7 @@ class Object(PhysicalBody, HasParameters):
         Initialize the link objects from the URDF file and creates a dictionary which maps the link names to the
         corresponding link objects.
         """
-        self.links = {}
+        self.links: Dict[str, Link] = {}
         for link_name, link_id in self.link_name_to_id.items():
             link_description = self.description.get_link_by_name(link_name)
             if link_name == self.description.get_root():
@@ -1606,12 +1606,12 @@ class Object(PhysicalBody, HasParameters):
 
         :return FrozenObject: The copied forzen object.
         """
-        frozen_links = {l_name: FrozenLink(l.name, l.pose, l.geometry) for l_name, l in self.links.items()}
+        frozen_links = {l_name: FrozenLink(l.name, l.ontology_concept, l.pose, l.geometry) for l_name, l in self.links.items()}
         frozen_joints = {j_name: FrozenJoint(j.name, j.type, [j.child], j.parent, j.current_state.position) for
                          j_name, j in self.joints.items()}
 
-        return FrozenObject(self.name, self.obj_type, self.path, self.description, self.pose,
-                            frozen_links, frozen_joints)
+        return FrozenObject(self.name, self.obj_type, self.pose, path=self.path, description=self.description,
+                            links=frozen_links, joints=frozen_joints)
 
     @classmethod
     def define_parameters(cls) -> Dict[str, Any]:
