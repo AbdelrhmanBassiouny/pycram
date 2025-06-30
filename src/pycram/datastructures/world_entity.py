@@ -170,7 +170,7 @@ class WorldEntity(StateEntity, HasConcept):
         return hash((self.id, self.name, self.parent_entity))
 
 
-class PhysicalBody(WorldEntity, ABC):
+class PhysicalBody(WorldEntity):
     """
     A class that represents a physical body in the world that has some related physical properties.
     """
