@@ -1,5 +1,6 @@
 from typing import Optional, Tuple
 
+from pycram.datastructures.pose import Vector3
 from trimesh import Trimesh
 from typing_extensions import List, Any, Union, Dict, Self, TYPE_CHECKING, Type
 
@@ -17,7 +18,7 @@ if TYPE_CHECKING:
 
 
 class NamedBoxVisualShape(BoxVisualShape):
-    def __init__(self, name: str, color: Color, visual_frame_position: List[float], halfExtents: List[float]):
+    def __init__(self, name: str, color: Color, visual_frame_position: Vector3, halfExtents: Vector3):
         super().__init__(color, visual_frame_position, halfExtents)
         self._name: str = name
 
@@ -27,7 +28,7 @@ class NamedBoxVisualShape(BoxVisualShape):
 
 
 class NamedCylinderVisualShape(CylinderVisualShape):
-    def __init__(self, name: str, color: Color, visual_frame_position: List[float], radius: float, length: float):
+    def __init__(self, name: str, color: Color, visual_frame_position: Vector3, radius: float, length: float):
         super().__init__(color, visual_frame_position, radius, length)
         self._name: str = name
 
@@ -54,7 +55,7 @@ class LinkDescription(AbstractLinkDescription):
 
     @property
     def origin(self) -> PoseStamped:
-        return PoseStamped.from_list(self.parsed_description.visual_frame_position)
+        return PoseStamped.from_list(self.parsed_description.visual_frame_position.to_list())
 
     @property
     def name(self) -> str:

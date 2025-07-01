@@ -1606,9 +1606,9 @@ class Object(PhysicalBody, HasParameters):
 
         :return FrozenObject: The copied forzen object.
         """
-        frozen_links = {l_name: l.frozen_copy() for l_name, l in self.links.items()}
-        frozen_joints = {j_name: FrozenJoint(j.name, j.type, [j.child], j.parent, j.current_state.position) for
-                         j_name, j in self.joints.items()}
+        frozen_links = [l.frozen_copy() for l in self.links.values()]
+        frozen_joints = [FrozenJoint(j.name, j.type, [j.child], j.parent, j.current_state.position) for
+                         j in self.joints.values()]
 
         return FrozenObject(self.name, self.obj_type, self.pose, path=self.path, description=self.description,
                             links=frozen_links, joints=frozen_joints)

@@ -1,4 +1,5 @@
 import numpy as np
+from pycram.datastructures.pose import Vector3
 from trimesh import Trimesh
 from typing_extensions import List, Tuple, Optional, Union, Dict
 
@@ -358,7 +359,7 @@ def generate_object_at_target(target_location: List[float], size: Tuple[float, .
     :param size: The size of the object.
     :param name: The name of the object.
     """
-    box_vis_shape = BoxVisualShape(Color(), [0, 0, 0], [s / 2 for s in size])
+    box_vis_shape = BoxVisualShape(Color(), Vector3(0, 0, 0), Vector3(s / 2 for s in size))
     gen_obj_desc = GenericObjectDescription(name, box_vis_shape)
     gen_obj = Object(name, PhysicalObject, None, gen_obj_desc)
     gen_obj.set_pose(PoseStamped.from_list(target_location))

@@ -11,6 +11,7 @@ import numpy as np
 import plotly.graph_objects as go
 import trimesh
 from matplotlib import pyplot as plt
+from pygments.lexer import default
 
 from random_events.interval import closed, SimpleInterval, Bound
 from random_events.product_algebra import SimpleEvent, Event
@@ -807,7 +808,7 @@ class VisualShape(ABC):
     Abstract dataclass for storing the information of a visual shape.
     """
     rgba_color: Color
-    visual_frame_position: List[float]
+    visual_frame_position: Vector3
 
     @property
     def size(self):
@@ -840,10 +841,17 @@ class BoxVisualShape(VisualShape):
     """
     Dataclass for storing the information of a box visual shape
     """
-    half_extents: List[float]
+    half_extents: Vector3
+
+    def __post_init__(self):
+        if not isinstance(self.half_extents, Vector3):
+            if hasattr(self.half_extents, "__iter__"):
+                self.half_extents = Vector3(*list(self.half_extents))
+            else:
+                raise TypeError("half_extents must be a Vector3  or an iterable object.")
 
     def shape_data(self) -> Dict[str, List[float]]:
-        return {"halfExtents": self.half_extents}
+        return {"halfExtents": self.half_extents.to_list()}
 
     @property
     def visual_geometry_type(self) -> Shape:
@@ -917,11 +925,18 @@ class MeshVisualShape(VisualShape):
     """
     Dataclass for storing the information of a mesh visual shape
     """
-    scale: List[float]
+    scale: Vector3
     file_name: str
 
+    def __post_init__(self):
+        if not isinstance(self.scale, Vector3):
+            if hasattr(self.scale, "__iter__"):
+                self.scale = Vector3(*list(self.scale))
+            else:
+                raise TypeError("Scale must be a Vector3  or an iterable object.")
+
     def shape_data(self) -> Dict[str, Union[List[float], str]]:
-        return {"meshScale": self.scale, "meshFileName": self.file_name}
+        return {"meshScale": self.scale.to_list(), "meshFileName": self.file_name}
 
     @property
     def visual_geometry_type(self) -> Shape:
@@ -943,10 +958,17 @@ class PlaneVisualShape(VisualShape):
     """
     Dataclass for storing the information of a plane visual shape
     """
-    normal: List[float]
+    normal: Vector3
+
+    def __post_init__(self):
+        if not isinstance(self.normal, Vector3):
+            if hasattr(self.normal, "__iter__"):
+                self.normal = Vector3(*list(self.normal))
+            else:
+                raise TypeError("normal must be a Vector3  or an iterable object.")
 
     def shape_data(self) -> Dict[str, List[float]]:
-        return {"normal": self.normal}
+        return {"normal": self.normal.to_list()}
 
     @property
     def visual_geometry_type(self) -> Shape:
@@ -1195,6 +1217,12 @@ class ContactPoint:
     normal_force: Optional[float] = None  # normal force applied during last step simulation
     lateral_friction_1: Optional[LateralFriction] = None
     lateral_friction_2: Optional[LateralFriction] = None
+    body_a_frozen_cp: FrozenBody = field(init=False, hash=False, repr=False)
+    body_b_frozen_cp: FrozenBody = field(init=False, hash=False, repr=False)
+
+    def __post_init__(self):
+        self.body_a_frozen_cp = self.body_a.frozen_copy()
+        self.body_b_frozen_cp = self.body_b.frozen_copy()
 
     @property
     def normal(self) -> Vector3:
@@ -1210,17 +1238,32 @@ class ContactPoint:
     def __repr__(self):
         return self.__str__()
 
+@dataclass
+class ClosestPoint(ContactPoint):
+    """
+    The closest point between two objects which has the same structure as ContactPoint.
+    """
+    ...
 
-ClosestPoint = ContactPoint
-"""
-The closest point between two objects which has the same structure as ContactPoint.
-"""
-
-
-class ContactPointsList(list):
+@dataclass
+class ContactPointsList:
     """
     A list of contact points.
     """
+
+    points: List[ContactPoint] = field(default_factory=list, repr=False, hash=False)
+
+    def __post_init__(self):
+        self.points = [p for p in self]
+
+    def __iter__(self):
+        return iter(self.points)
+
+    def __getitem__(self, index):
+        return self.points[index]
+
+    def append(self, contactPoint: ContactPoint):
+        self.points.append(contactPoint)
 
     def get_bodies_that_got_removed(self, previous_points: ContactPointsList) -> List[PhysicalBody]:
         """
@@ -1384,11 +1427,12 @@ class ContactPointsList(list):
     def __repr__(self):
         return self.__str__()
 
-
-ClosestPointsList = ContactPointsList
-"""
-The list of closest points which has same structure as ContactPointsList.
-"""
+@dataclass
+class ClosestPointsList(ContactPointsList):
+    """
+    The list of closest points which has same structure as ContactPointsList.
+    """
+    ...
 
 
 @dataclass
@@ -1670,11 +1714,11 @@ class FrozenObject(FrozenBody):
     """
     The description of the object, this is a combination of links and joints
     """
-    links: Optional[Dict[str, FrozenLink]] = None
+    links: List[FrozenLink] = field(default_factory=list)
     """
     A dictionary with the link name as key and the link object as value
     """
-    joints: Optional[Dict[str, FrozenJoint]] = None
+    joints: List[FrozenJoint] = field(default_factory=list)
     """
     A dictionary of all joints, with the joint name as key and the joint object as value
     """
@@ -1699,7 +1743,11 @@ class FrozenLink(FrozenBody):
         :param geometry: The list of VisualShapes representing the geometry of the link.
         :return: A FrozenLink instance.
         """
-        return cls(**frozen_body.__dict__, geometry=geometry if geometry is not None else [])
+        dict_params = frozen_body.__dict__
+        dict_params = {f.name: dict_params[f.name] for f in fields(frozen_body)}
+        # del dict_params['_sa_instance_state']
+        # del dict_params['polymorphic_type']
+        return cls(**dict_params, geometry=geometry if geometry is not None else [])
 
 @dataclass
 class FrozenJoint:

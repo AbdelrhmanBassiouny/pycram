@@ -441,13 +441,13 @@ class BulletWorld(World):
 
         pose_in_map = self.local_transformer.transform_pose(pose, "map")
 
-        box_vis_shape = BoxVisualShape(Color(1, 0, 0, 0.8), [length, 0.01, 0.01], [length, 0.01, 0.01])
+        box_vis_shape = BoxVisualShape(Color(1, 0, 0, 0.8), Vector3(length, 0.01, 0.01), Vector3(length, 0.01, 0.01))
         vis_x = self.create_visual_shape(box_vis_shape)
 
-        box_vis_shape = BoxVisualShape(Color(0, 1, 0, 0.8), [0.01, length, 0.01], [0.01, length, 0.01])
+        box_vis_shape = BoxVisualShape(Color(0, 1, 0, 0.8), Vector3(0.01, length, 0.01), Vector3(0.01, length, 0.01))
         vis_y = self.create_visual_shape(box_vis_shape)
 
-        box_vis_shape = BoxVisualShape(Color(0, 0, 1, 0.8), [0.01, 0.01, length], [0.01, 0.01, length])
+        box_vis_shape = BoxVisualShape(Color(0, 0, 1, 0.8), Vector3(0.01, 0.01, length), Vector3(0.01, 0.01, length))
         vis_z = self.create_visual_shape(box_vis_shape)
 
         multibody = MultiBody(base_visual_shape_index=-1, base_pose=pose_in_map,
@@ -487,7 +487,7 @@ class BulletWorld(World):
         with self.world_lock:
             return p.createVisualShape(visual_shape.visual_geometry_type.value,
                                        rgbaColor=visual_shape.rgba_color.get_rgba(),
-                                       visualFramePosition=visual_shape.visual_frame_position,
+                                       visualFramePosition=visual_shape.visual_frame_position.to_list(),
                                        physicsClientId=self.id, **visual_shape.shape_data())
 
     def _create_multi_body(self, multi_body: MultiBody) -> int:

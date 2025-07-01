@@ -5,6 +5,7 @@ from xml.etree import ElementTree as ET
 
 import numpy as np
 from dm_control import mjcf
+from pygame import Vector3
 from typing_extensions import Union, List, Optional, Dict, Tuple, Self
 
 from ..datastructures.dataclasses import Color, VisualShape, BoxVisualShape, CylinderVisualShape, \
@@ -51,15 +52,18 @@ class LinkDescription(AbstractLinkDescription):
         :return: The VisualShape of the given MJCFGeometry object.
         """
         if mjcf_geometry.type == MJCFGeomType.BOX.value:
-            return BoxVisualShape(Color(), [0, 0, 0], mjcf_geometry.size)
+            size = mjcf_geometry.size.tolist() if isinstance(mjcf_geometry.size, np.ndarray) else list(mjcf_geometry.size)
+            return BoxVisualShape(Color(), Vector3(0, 0, 0), Vector3(*size))
         if mjcf_geometry.type == MJCFGeomType.CYLINDER.value:
-            return CylinderVisualShape(Color(), [0, 0, 0], mjcf_geometry.size[0], mjcf_geometry.size[1] * 2)
+            return CylinderVisualShape(Color(), Vector3(0, 0, 0), mjcf_geometry.size[0], mjcf_geometry.size[1] * 2)
         if mjcf_geometry.type == MJCFGeomType.SPHERE.value:
-            return SphereVisualShape(Color(), [0, 0, 0], mjcf_geometry.size[0])
+            return SphereVisualShape(Color(), Vector3(0, 0, 0), mjcf_geometry.size[0])
         if mjcf_geometry.type == MJCFGeomType.MESH.value:
             mesh_filename = mjcf_geometry.mesh.file.prefix + mjcf_geometry.mesh.file.extension
             mesh_filename = self.look_for_file_in_mesh_dir(mesh_filename)
-            return MeshVisualShape(Color(), [0, 0, 0], mjcf_geometry.mesh.scale, mesh_filename)
+            scale = mjcf_geometry.mesh.scale.tolist() if isinstance(mjcf_geometry.mesh.scale, np.ndarray) else list(
+                mjcf_geometry.mesh.scale)
+            return MeshVisualShape(Color(), Vector3(0, 0, 0), Vector3(*scale), mesh_filename)
         return None
 
     def look_for_file_in_mesh_dir(self, file_name: str) -> str:

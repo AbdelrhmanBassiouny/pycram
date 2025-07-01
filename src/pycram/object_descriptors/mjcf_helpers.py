@@ -133,7 +133,7 @@ class PrimitiveObjectFactory(ObjectFactory):
             geom_name=f"{self.config.model_name}_Shape",
             geom_property=geom_property
         )
-        geom_pos = self.shape_data.visual_frame_position
+        geom_pos = self.shape_data.visual_frame_position.to_list()
         geom_quat = np.array(self.orientation)
         if self.shape_data.visual_geometry_type == Shape.PLANE:
             geom_builder.set_transform(pos=geom_pos, quat=geom_quat, scale=np.array([50, 50, 1]))

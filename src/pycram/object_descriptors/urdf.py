@@ -6,6 +6,8 @@ import pathlib
 import xml.etree.ElementTree as ET
 
 import numpy as np
+from pygame import Vector3
+
 from ..tf_transformations import quaternion_from_euler, euler_from_quaternion
 from typing_extensions import Union, List, Optional, Dict, Tuple, Type, Self
 from urdf_parser_py import urdf
@@ -63,13 +65,13 @@ class LinkDescription(AbstractLinkDescription):
         """
         if isinstance(urdf_geometry, URDF_Box):
             half_extents = np.array(urdf_geometry.size) / 2
-            return BoxVisualShape(Color(), [0, 0, 0], half_extents.tolist())
+            return BoxVisualShape(Color(), Vector3(0, 0, 0), Vector3(*half_extents.tolist()))
         if isinstance(urdf_geometry, URDF_Cylinder):
-            return CylinderVisualShape(Color(), [0, 0, 0], urdf_geometry.radius, urdf_geometry.length)
+            return CylinderVisualShape(Color(), Vector3(0, 0, 0), urdf_geometry.radius, urdf_geometry.length)
         if isinstance(urdf_geometry, URDF_Sphere):
-            return SphereVisualShape(Color(), [0, 0, 0], urdf_geometry.radius)
+            return SphereVisualShape(Color(), Vector3(0, 0, 0), urdf_geometry.radius)
         if isinstance(urdf_geometry, URDF_Mesh):
-            return MeshVisualShape(Color(), [0, 0, 0], urdf_geometry.scale, urdf_geometry.filename)
+            return MeshVisualShape(Color(), Vector3(0, 0, 0), Vector3(*np.array(urdf_geometry.scale).tolist()), urdf_geometry.filename)
         return None
 
     @property

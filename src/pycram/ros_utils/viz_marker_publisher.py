@@ -114,7 +114,7 @@ class VizMarkerPublisher:
                     msg.type = Marker.MESH_RESOURCE
                     msg.mesh_resource = "file://" + geom.file_name
                     if hasattr(geom, "scale") and geom.scale is not None:
-                        msg.scale = Vector3(**dict(zip(["x", "y", "z"], geom.scale)))
+                        msg.scale = Vector3(**dict(zip(["x", "y", "z"], geom.scale.to_list())))
                     else:
                         msg.scale = Vector3(x=1.0, y=1.0, z=1.0)
                     msg.mesh_use_embedded_materials = True

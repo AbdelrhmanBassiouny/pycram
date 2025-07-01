@@ -10,6 +10,7 @@ import random_events
 from matplotlib import colors
 from probabilistic_model.probabilistic_circuit.nx.helper import uniform_measure_of_event
 from probabilistic_model.probabilistic_circuit.nx.probabilistic_circuit import ProbabilisticCircuit
+from pygame import Vector3
 from random_events.interval import Interval, reals, closed_open, closed
 from random_events.product_algebra import Event, SimpleEvent
 from random_events.variable import Continuous
@@ -121,9 +122,9 @@ class Costmap:
         # please look here: https://docs.google.com/document/d/10sXEhzFRSnvFcl3XxNGhnD4N2SedqwdAvK3dsihxVUA/edit#heading=h.q1gn7v6o58bf
         for box in boxes:
             box = BoxVisualShape(Color(1, 0, 0, 0.6),
-                                 [(box[0][0] + box[1] / 2) * self.resolution,
-                                  (box[0][1] + box[2] / 2) * self.resolution, 0.],
-                                 [(box[1] * self.resolution) / 2, (box[2] * self.resolution) / 2, 0.001])
+                                 Vector3((box[0][0] + box[1] / 2) * self.resolution,
+                                  (box[0][1] + box[2] / 2) * self.resolution, 0.),
+                                 Vector3((box[1] * self.resolution) / 2, (box[2] * self.resolution) / 2, 0.001))
             visual = self.world.create_visual_shape(box)
             cells.append(visual)
         # Set to 127 for since this is the maximal amount of links in a multibody
