@@ -1593,6 +1593,9 @@ class Object(PhysicalBody, HasParameters):
                      world, self.color)
         return obj
 
+    def root_body(self) -> PhysicalBody:
+        return self.root_link
+
     def parent_entity(self) -> World:
         """
         :return: The parent of this object which is the world.

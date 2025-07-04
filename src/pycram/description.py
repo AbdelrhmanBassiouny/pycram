@@ -206,6 +206,9 @@ class Link(PhysicalBody, ObjectEntity, LinkDescription, ABC):
         self.local_transformer: LocalTransformer = LocalTransformer()
         self.constraint_ids: Dict[Link, int] = {}
 
+    def root_body(self) -> PhysicalBody:
+        return self
+
     def frozen_copy(self) -> FrozenLink:
         """
         Create a frozen copy of this link, which is a copy that cannot be modified.

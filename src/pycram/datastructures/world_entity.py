@@ -235,6 +235,14 @@ class PhysicalBody(WorldEntity):
         """
         ...
 
+    @property
+    @abstractmethod
+    def root_body(self) -> PhysicalBody:
+        """
+        :return: The root body of this body, if it has one.
+        """
+        ...
+
     def update_containment(self, excluded_bodies: Optional[List[PhysicalBody]] = None,
                            candidate_selection_method: AdjacentBodyMethod = AdjacentBodyMethod.ClosestPoints,
                            max_distance: float = 0.5,
@@ -255,7 +263,7 @@ class PhysicalBody(WorldEntity):
         :return: The bodies that contain this body.
         """
         excluded_bodies = [] if excluded_bodies is None else excluded_bodies
-        excluded_bodies.append(self)
+        excluded_bodies.extend(list({self, self.root_body}))
         floor = self.world.get_object_by_name("floor")
         excluded_bodies.extend([floor, floor.root_link])
         if only_bodies is None:
@@ -265,7 +273,6 @@ class PhysicalBody(WorldEntity):
                 bodies = self.get_adjacent_bodies_using_rays(max_distance)
         else:
             bodies = only_bodies
-        # self.contained_in_bodies = []
         contained_in_bodies = []
         for body in bodies:
             if body in excluded_bodies:
