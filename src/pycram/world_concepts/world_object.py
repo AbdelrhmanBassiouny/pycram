@@ -952,6 +952,14 @@ class Object(PhysicalBody, HasParameters):
         for joint in self.joints.values():
             joint.save_state(state_id)
 
+    def set_state_from_frozen_cp(self, obj_cp: FrozenObject) -> None:
+        self.set_pose(obj_cp.pose)
+        self.is_moving = obj_cp.is_moving
+        self.is_translating = obj_cp.is_translating
+        self.is_rotation = obj_cp.is_rotation
+        self.velocity = obj_cp.velocity
+        self.set_joint_positions({j.name: j.position for j in obj_cp.joints})
+
     @property
     def current_state(self) -> ObjectState:
         """

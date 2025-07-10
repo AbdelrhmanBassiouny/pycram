@@ -6,7 +6,6 @@ import pathlib
 import xml.etree.ElementTree as ET
 
 import numpy as np
-from pygame import Vector3
 
 from ..tf_transformations import quaternion_from_euler, euler_from_quaternion
 from typing_extensions import Union, List, Optional, Dict, Tuple, Type, Self
@@ -18,7 +17,7 @@ from ..ros import get_ros_package_path
 from ..datastructures.dataclasses import Color, VisualShape, BoxVisualShape, CylinderVisualShape, \
     SphereVisualShape, MeshVisualShape
 from ..datastructures.enums import JointType
-from ..datastructures.pose import PoseStamped, Point
+from ..datastructures.pose import PoseStamped, Point, Vector3
 from ..description import JointDescription as AbstractJointDescription, \
     LinkDescription as AbstractLinkDescription, ObjectDescription as AbstractObjectDescription
 from ..failures import MultiplePossibleTipLinks

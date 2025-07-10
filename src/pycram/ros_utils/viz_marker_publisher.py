@@ -124,7 +124,7 @@ class VizMarkerPublisher:
                 elif isinstance(geom, BoxVisualShape):
                     msg.type = Marker.CUBE
                     size = np.array(geom.size) * 2
-                    msg.scale = Vector3(x=float(size[0]), y=float(size[1]), z=float(size[2]))
+                    msg.scale = Vector3(x=float(size.flatten()[0]), y=float(size.flatten()[1]), z=float(size.flatten()[2]))
                 elif isinstance(geom, SphereVisualShape):
                     msg.type = Marker.SPHERE
                     msg.scale = Vector3(x=geom.radius * 2, y=geom.radius * 2, z=geom.radius * 2)

@@ -426,6 +426,15 @@ class World(WorldEntity, ABC):
         """
         raise NotImplementedError
 
+    def set_state_from_frozen_cp(self, world_state: FrozenWorldState):
+        """
+        Set the current world state from a forzen world state.
+
+        :param world_state: The world state to go to.
+        """
+        for obj_cp in world_state.objects:
+            self.get_object_by_name(obj_cp.name).set_state_from_frozen_cp(obj_cp)
+
     def get_object_names(self) -> List[str]:
         """
         Return the names of all objects in the World.

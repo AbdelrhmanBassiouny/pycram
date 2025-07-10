@@ -21,7 +21,7 @@ from .datastructures.dataclasses import BoxVisualShape, Color
 from .datastructures.pose import TransformStamped
 from .ros import logwarn
 from .datastructures.dataclasses import AxisAlignedBoundingBox
-from .datastructures.pose import PoseStamped
+from .datastructures.pose import PoseStamped, Vector3
 from .datastructures.world import UseProspectionWorld
 from .datastructures.world import World
 from .description import Link
