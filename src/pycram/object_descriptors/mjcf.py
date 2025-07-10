@@ -5,7 +5,7 @@ from xml.etree import ElementTree as ET
 
 import numpy as np
 from dm_control import mjcf
-from pygame import Vector3
+from ..datastructures.pose import Vector3
 from typing_extensions import Union, List, Optional, Dict, Tuple, Self
 
 from ..datastructures.dataclasses import Color, VisualShape, BoxVisualShape, CylinderVisualShape, \
