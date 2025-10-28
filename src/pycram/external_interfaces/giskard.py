@@ -3,6 +3,7 @@ import random
 import threading
 
 import sys
+from types import NoneType
 from typing import TYPE_CHECKING
 
 from ..object_descriptors.generic import NamedBoxVisualShape
@@ -20,8 +21,14 @@ from ..robot_description import RobotDescription
 from ..object_descriptors.urdf import ObjectDescription as UrdfObjectDescription
 
 from typing_extensions import List, Dict, Callable, Optional
-from geometry_msgs.msg import PoseStamped as ROSPoseStamped, PointStamped, QuaternionStamped, \
-    Vector3Stamped as ROSVector3Stamped
+try:
+    from geometry_msgs.msg import PoseStamped as ROSPoseStamped, PointStamped, QuaternionStamped, \
+        Vector3Stamped as ROSVector3Stamped
+except ImportError as e:
+    ROSPoseStamped = None
+    PointStamped = None
+    QuaternionStamped = None
+    ROSVector3Stamped = None
 
 from threading import Lock, RLock
 from pycram.ros import logging as log
@@ -33,7 +40,13 @@ try:
     from giskardpy.motion_statechart.tasks.task import WEIGHT_BELOW_CA
 except ModuleNotFoundError as e:
     logwarn("Failed to import Giskard messages, the real robot will not be available")
-
+    GiskardWrapper = NoneType
+    WEIGHT_BELOW_CA = NoneType
+    SpiralMixing = NoneType
+    WorldBody = None
+    MoveResult = None
+    CollisionEntry = None
+    LinkName = None
 if TYPE_CHECKING:
     from giskardpy_ros.python_interface.python_interface import GiskardWrapper as GiskardWrapper
 

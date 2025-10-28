@@ -11,7 +11,7 @@ from enum import Enum
 from itertools import product
 
 import numpy as np
-import tf2_ros
+# import tf2_ros
 from scipy.spatial.transform import Rotation as R
 from typing_extensions import List, Dict, Union, Optional, Tuple, TYPE_CHECKING
 

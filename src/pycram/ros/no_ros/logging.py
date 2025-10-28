@@ -1,3 +1,4 @@
+from enum import Enum
 from logging import getLogger, Logger
 from functools import lru_cache
 import logging
@@ -39,4 +40,10 @@ def set_logger_level(level: int):
     Set the logging level for the logger.
     :param level: The logging level to set.
     """
-    logger.setLevel(level)
+    if isinstance(level, Enum):
+        level = level.value
+    try:
+        logger.setLevel(level)
+    except ValueError as e:
+        if level == "debug":
+            logger.setLevel(logging.DEBUG)

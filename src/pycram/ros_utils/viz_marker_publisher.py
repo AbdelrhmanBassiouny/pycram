@@ -5,11 +5,18 @@ from functools import cached_property
 from typing import List, Optional, Tuple
 
 import numpy as np
-from geometry_msgs.msg import Vector3, Point
-from std_msgs.msg import ColorRGBA
-from visualization_msgs.msg import Marker, MarkerArray
+try:
+    from geometry_msgs.msg import Vector3, Point
+    from std_msgs.msg import ColorRGBA
+    from visualization_msgs.msg import Marker, MarkerArray
+except ImportError as e:
+    Vector3 = None
+    Point = None
+    ColorRGBA = None
+    Marker = None
+    MarkerArray = None
 
-from ..datastructures.dataclasses import BoxVisualShape, CylinderVisualShape, MeshVisualShape, SphereVisualShape
+from ..datastructures.dataclasses import BoxVisualShape, CylinderVisualShape, MeshVisualShape, SphereVisualShape, Color as ColorRGBA
 from ..datastructures.pose import PoseStamped, TransformStamped
 from ..datastructures.world import World
 from ..designator import ObjectDesignatorDescription
@@ -251,7 +258,7 @@ class ManualMarkerPublisher:
         self.log_message = f"Object '{name}' published"
 
     def _make_marker_array(self, name, marker_type: int, marker_pose: PoseStamped, marker_scales: Tuple = (1.0, 1.0, 1.0),
-                           color_rgba: ColorRGBA = ColorRGBA(**dict(zip(["r", "g", "b","a"], [1.0, 1.0, 1.0, 1.0]))),
+                           color_rgba: ColorRGBA = ColorRGBA(1.0, 1.0, 1.0, 1.0),
                            path_to_resource: Optional[str] = None):
         """
         Create a Marker and add it to the MarkerArray
